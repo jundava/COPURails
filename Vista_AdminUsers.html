@@ -1,0 +1,112 @@
+<!-- ARCHIVO: Vista_AdminUsers.html -->
+<div class="h-full flex flex-col space-y-4">
+  
+  <!-- CABECERA -->
+  <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm shrink-0 flex justify-between items-center">
+    <div>
+      <h3 class="text-lg font-semibold text-slate-800 flex items-center gap-2">
+        <i class="ph ph-shield-check text-blue-600 text-xl"></i> Administración de Usuarios y Seguridad (RBAC)
+      </h3>
+      <p class="text-sm text-slate-500 mt-1">Control de operadores por sucursal, asignación de perfiles de acceso y bloqueo de credenciales.</p>
+    </div>
+    <button @click="abrirModalNuevoUsuario()" class="bg-slate-800 hover:bg-slate-900 text-white font-bold px-4 py-2.5 rounded-lg text-sm shadow-sm flex items-center gap-2 transition-colors">
+      <i class="ph ph-user-plus text-lg"></i> Crear Operador
+    </button>
+  </div>
+
+  <!-- TABLA DE USUARIOS DEL SISTEMA -->
+  <div class="bg-white rounded-xl border border-slate-200 shadow-sm flex-1 flex flex-col overflow-hidden">
+    <div class="border-b border-slate-200 bg-slate-50 px-6 py-3 flex justify-between items-center shrink-0">
+      <h4 class="font-semibold text-slate-700 text-xs uppercase tracking-wider">Nómina de Operadores Habilitados</h4>
+      <span class="text-xs text-slate-500">Autenticación vinculada a Google Workspace / Sesión Segura</span>
+    </div>
+
+    <div class="flex-1 overflow-auto">
+      <table class="w-full text-left border-collapse">
+        <thead class="bg-white sticky top-0 border-b border-slate-200 z-10">
+          <tr>
+            <th class="py-3 px-5 text-xs font-semibold text-slate-500 uppercase">ID / Usuario</th>
+            <th class="py-3 px-5 text-xs font-semibold text-slate-500 uppercase">Nombre y Cargo</th>
+            <th class="py-3 px-5 text-xs font-semibold text-slate-500 uppercase">Sucursal Asignada</th>
+            <th class="py-3 px-5 text-xs font-semibold text-slate-500 uppercase">Rol de Seguridad (RBAC)</th>
+            <th class="py-3 px-5 text-xs font-semibold text-slate-500 uppercase text-center">Estado</th>
+            <th class="py-3 px-5 text-xs font-semibold text-slate-500 uppercase text-right">Acción</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 text-sm">
+          <tr v-for="u in listaUsuariosSistema" :key="u.id" class="hover:bg-slate-50">
+            <td class="py-3.5 px-5 font-mono font-bold text-slate-800">{{ u.username }}</td>
+            <td class="py-3.5 px-5">
+              <p class="font-bold text-slate-800">{{ u.nombre }}</p>
+              <p class="text-xs text-slate-500">{{ u.email }}</p>
+            </td>
+            <td class="py-3.5 px-5 font-medium text-slate-700">{{ u.sucursal }}</td>
+            <td class="py-3.5 px-5">
+              <span class="bg-blue-50 text-blue-700 border border-blue-200 text-xs font-bold px-2.5 py-1 rounded">
+                {{ u.rol }}
+              </span>
+            </td>
+            <td class="py-3.5 px-5 text-center">
+              <span :class="u.activo ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'" class="text-[10px] font-bold px-2.5 py-1 rounded-full uppercase">
+                {{ u.activo ? 'ACTIVO' : 'BLOQUEADO' }}
+              </span>
+            </td>
+            <td class="py-3.5 px-5 text-right">
+              <button @click="alternarEstadoUsuario(u)" class="text-xs font-bold px-3 py-1.5 rounded border transition-colors" :class="u.activo ? 'border-red-200 text-red-600 hover:bg-red-50' : 'border-emerald-200 text-emerald-600 hover:bg-emerald-50'">
+                {{ u.activo ? 'Bloquear' : 'Reactivar' }}
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- MODAL: ALTA DE OPERADOR -->
+  <div v-if="seguridad.mostrarModal" class="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center backdrop-blur-sm p-4">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-md flex flex-col border border-slate-200 overflow-hidden">
+      <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+        <h3 class="font-semibold text-slate-800">Alta de Operador de Sistema</h3>
+        <button @click="seguridad.mostrarModal = false"><i class="ph ph-x text-lg text-slate-400"></i></button>
+      </div>
+      <form @submit.prevent="guardarNuevoUsuario" class="p-6 space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Código de Usuario (Login)</label>
+          <input v-model="formUsuario.username" type="text" required placeholder="Ej. USR_CAJA02" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono uppercase outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Nombre Completo del Funcionario</label>
+          <input v-model="formUsuario.nombre" type="text" required placeholder="Ej. LIC. SONIA DUARTE" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm uppercase outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Correo Institucional</label>
+          <input v-model="formUsuario.email" type="email" required placeholder="sduarte@cooperativa.coop.py" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Sucursal</label>
+            <select v-model="formUsuario.sucursal" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white outline-none">
+              <option value="CASA CENTRAL">CASA CENTRAL</option>
+              <option value="AGENCIA SAN LORENZO">AGENCIA SAN LORENZO</option>
+              <option value="AGENCIA LUQUE">AGENCIA LUQUE</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Rol RBAC</label>
+            <select v-model="formUsuario.rol" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white outline-none font-bold">
+              <option value="CAJERO">CAJERO POS</option>
+              <option value="OFICIAL_CREDITO">OFICIAL CRÉDITOS</option>
+              <option value="TESORERO">TESORERO</option>
+              <option value="COMITE_CONSEJO">DIRECTIVO / COMITÉ</option>
+              <option value="ADMIN_SISTEMA">SUPER ADMIN</option>
+            </select>
+          </div>
+        </div>
+        <div class="flex justify-end gap-3 pt-4 border-t border-slate-200">
+          <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold">Habilitar Credencial</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>

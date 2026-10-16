@@ -1,0 +1,1721 @@
+<!-- ARCHIVO: App_Main_Script.html -->
+<script>
+  const { createApp, ref, reactive } = Vue;
+
+  createApp({
+    setup() {
+      // 1. Contexto Global (SaaS Multi-Tenant)
+      const tenant = reactive({
+        id: 'TENANT_COPU_01',
+        nombre: 'Cooperativa CopuRails',
+        sucursal: 'CASA CENTRAL',
+        user: 'USR_994'
+      });
+
+      // 2. Estado de la Aplicación
+      const vistaActual = ref('dashboard'); // Controla la navegación
+      const loading = ref(false);
+
+      // 3. Estado de Módulo de Caja
+      // --- ESTADO Y MÉTODOS DE CAJA AMPLIADOS ---
+      const caja = reactive({
+        estado: 'CERRADA',
+        montoApertura: 0,
+        totalCobradoTurno: 0, // Solo efectivo
+        
+        // Variables de Operativa
+        vistaTab: 'operacion', // Controla las pestañas (Terminal POS o Historial)
+        tabCobro: 'INTERNO',
+        busquedaSocio: '',
+        servicioSeleccionado: '',
+        deudasConsultadas: [],
+        
+        // Carrito y Valores
+        carrito: [],
+        efectivoRecibido: 0,
+        formaPago: 'EFECTIVO',
+        refVoucher: '',
+        nroCheque: '',
+        bancoCheque: '',
+        totalPOS: 0,
+        totalCheques: 0,
+        
+        // Historial
+        filtroFecha: new Date().toISOString().split('T')[0],
+        filtroHistorialTexto: '',
+        
+        // Arqueo
+        mostrarArqueo: false,
+        montoArqueoDeclarado: 0
+      });
+
+      // Mock Historial de Cobranzas
+      const listaHistorialCobranzas = ref([
+        { id: 101, nro_recibo: 'REC-2026-0012', fecha_hora: '15/10/2026 09:15', descripcion: 'Cuota 5/12 (PR-2026-0901)', referencia: 'SOCIO: 12544', forma_pago: 'EFECTIVO', monto: 450500, cajero: 'USR_994' },
+        { id: 102, nro_recibo: 'REC-2026-0013', fecha_hora: '15/10/2026 10:30', descripcion: 'Factura ANDE (NIS 123456)', referencia: 'EXTERNO', forma_pago: 'TARJETA_CREDITO', monto: 185000, cajero: 'USR_994' },
+        { id: 103, nro_recibo: 'REC-2026-0014', fecha_hora: '15/10/2026 11:05', descripcion: 'Solidaridad Octubre', referencia: 'SOCIO: 12544', forma_pago: 'QR_BANCARIO', monto: 30000, cajero: 'USR_994' }
+      ]);
+      const historialCobranzasFiltrado = Vue.computed(() => {
+        return listaHistorialCobranzas.value.filter(h => {
+          const q = caja.filtroHistorialTexto.toLowerCase();
+          const pasaTxt = !q || h.nro_recibo.toLowerCase().includes(q) || h.descripcion.toLowerCase().includes(q) || h.forma_pago.toLowerCase().includes(q);
+          return pasaTxt;
+        });
+      });
+
+      // Añadir esto debajo de historialCobranzasFiltrado
+      const totalHistorialFiltrado = Vue.computed(() => {
+        return historialCobranzasFiltrado.value.reduce((acc, recibo) => {
+          return acc + recibo.monto;
+        }, 0);
+      });
+
+      // 4. Métodos
+      const cambiarVista = (vista) => {
+        vistaActual.value = vista;
+      };
+
+      // 1. Declarar el formateador UNA SOLA VEZ (Evita la ralentización del navegador)
+      const formateadorMoneda = new Intl.NumberFormat('es-PY');
+
+      const formatCurrency = (value) => {
+        // 2. Proteger contra valores indefinidos para que Vue no colapse
+        if (value === null || value === undefined || isNaN(value)) return '0';
+        return formateadorMoneda.format(value);
+      };
+      // Comunicación con GAS
+      const solicitarApertura = () => {
+        loading.value = true;
+        const payload = {
+          tenantId: tenant.id,
+          sucursalId: tenant.sucursal,
+          userId: tenant.user,
+          montoInicial: caja.montoIngreso
+        };
+
+        // Llamada Asíncrona al Backend .gs
+        google.script.run
+          .withSuccessHandler((response) => {
+             loading.value = false;
+             if(response.status === 'success') {
+                caja.estado = 'ABIERTA';
+                caja.saldoConfirmado = response.saldoInicialConfirmado;
+             } else {
+                alert("Error: " + response.message);
+             }
+          })
+          .withFailureHandler((err) => {
+             loading.value = false;
+             alert("Error de conexión: " + err.message);
+          })
+          .procesarAperturaCaja(payload);
+      };
+
+      // Agregar al setup() de Vue:
+      const menusAbiertos = reactive({
+        'menu-socios': true,
+        'menu-beneficios': false,
+        'menu-credito': true,
+        'menu-tesoreria': true, // <-- AGREGA ESTA LÍNEA
+        'menu-activos': false
+      });
+
+      const toggleMenu = (menuId) => {
+        menusAbiertos[menuId] = !menusAbiertos[menuId];
+      };
+
+      const mesaEntrada = reactive({
+        mostrarFormulario: false,
+        mostrarModalChecklist: false,
+        filtroNombre: '',
+        filtroEstado: 'TODOS',
+        solicitudSeleccionada: null,
+        checklist: { cedula: false, ingresos: false, factura: false }
+      });
+
+      const nuevoIngreso = reactive({
+        tipo_documento: 'CEDULA DE IDENTIDAD',
+        nro_documento: '',
+        nombre_completo: '',
+        telefono: '',
+        proponente1_id: '',
+        proponente2_id: ''
+      });
+
+      // Simulación de Base de Datos temporal (Normalmente vendría del backend via google.script.run)
+      const listaSolicitudes = ref([
+        { id: 1, fecha: '15/10/2026', nro_solicitud: '2026-001', nro_documento: '3.467.990', nombre_completo: 'CAPURRO, JOSE CARLOS', estado: 'PENDIENTE_RECEPCION' },
+        { id: 2, fecha: '14/10/2026', nro_solicitud: '2026-002', nro_documento: '1.128.571', nombre_completo: 'ESCOBAR, MARIA ELENA', estado: 'EN_EVALUACION' }
+      ]);
+
+      // Propiedad Computada para la Grilla (Vue extraerá la reactividad automáticamente)
+      const solicitudesFiltradas = Vue.computed(() => {
+        return listaSolicitudes.value.filter(sol => {
+          const coincideNombre = sol.nombre_completo.toLowerCase().includes(mesaEntrada.filtroNombre.toLowerCase()) || sol.nro_documento.includes(mesaEntrada.filtroNombre);
+          const coincideEstado = mesaEntrada.filtroEstado === 'TODOS' || sol.estado === mesaEntrada.filtroEstado;
+          return coincideNombre && coincideEstado;
+        });
+      });
+
+      // --- MÉTODOS: MESA DE ENTRADA ---
+      const abrirNuevoIngreso = () => {
+        // Limpiar form
+        nuevoIngreso.nro_documento = '';
+        nuevoIngreso.nombre_completo = '';
+        nuevoIngreso.telefono = '';
+        nuevoIngreso.proponente1_id = '';
+        mesaEntrada.mostrarFormulario = true;
+      };
+
+      const guardarNuevoIngreso = () => {
+        loading.value = true;
+        // TODO: Conectar con Codigo.gs (ej. procesarNuevoIngreso(payload))
+        
+        setTimeout(() => { // Simulación de Guardado
+          listaSolicitudes.value.unshift({
+            id: Date.now(),
+            fecha: new Date().toLocaleDateString('es-PY'),
+            nro_solicitud: 'SISTEMA-GEN',
+            nro_documento: nuevoIngreso.nro_documento,
+            nombre_completo: nuevoIngreso.nombre_completo.toUpperCase(),
+            estado: 'PENDIENTE_RECEPCION'
+          });
+          
+          loading.value = false;
+          mesaEntrada.mostrarFormulario = false;
+          alert("Expediente creado y derivado a Mesa de Entrada."); // En tu versión final usar el Toast
+        }, 800);
+      };
+
+      const abrirChecklist = (solicitud) => {
+        mesaEntrada.solicitudSeleccionada = solicitud;
+        mesaEntrada.checklist = { cedula: false, ingresos: false, factura: false };
+        mesaEntrada.mostrarModalChecklist = true;
+      };
+
+      const cerrarChecklist = () => {
+        mesaEntrada.mostrarModalChecklist = false;
+        mesaEntrada.solicitudSeleccionada = null;
+      };
+
+      const confirmarRecepcion = () => {
+        if(!mesaEntrada.checklist.cedula) {
+          alert("Debe confirmar al menos la Cédula de Identidad para recepcionar.");
+          return;
+        }
+        // Cambiar estado
+        mesaEntrada.solicitudSeleccionada.estado = 'EN_EVALUACION';
+        cerrarChecklist();
+        // TODO: Notificar al Backend del cambio de estado.
+      };
+
+      // --- ESTADO: APROBACIONES DE SOCIOS ---
+      const aprobaciones = reactive({
+        filtro: '',
+        mostrarModal: false,
+        tabActivo: 'resumen', // 'resumen', 'comite', 'consejo'
+        expedienteSeleccionado: null
+      });
+
+      const formComite = reactive({
+        acta: '',
+        dictamen: '',
+        observaciones: ''
+      });
+
+      const formConsejo = reactive({
+        acta: '',
+        decision: '',
+        motivo_rechazo: ''
+      });
+
+      // Propiedad Computada: Solo mostramos los expedientes que ya pasaron por Mesa de Entrada
+      const expedientesParaEvaluar = Vue.computed(() => {
+        return listaSolicitudes.value.filter(sol => {
+          const enEvaluacion = sol.estado === 'EN_EVALUACION'; // Ya recepcionado
+          const coincideFiltro = sol.nombre_completo.toLowerCase().includes(aprobaciones.filtro.toLowerCase()) || sol.nro_documento.includes(aprobaciones.filtro);
+          return enEvaluacion && coincideFiltro;
+        });
+      });
+
+      // --- MÉTODOS: APROBACIONES ---
+      const abrirModalAprobacion = (expediente) => {
+        aprobaciones.expedienteSeleccionado = expediente;
+        aprobaciones.tabActivo = 'resumen';
+        
+        // Limpiar formularios
+        formComite.acta = ''; formComite.dictamen = ''; formComite.observaciones = '';
+        formConsejo.acta = ''; formConsejo.decision = ''; formConsejo.motivo_rechazo = '';
+        
+        aprobaciones.mostrarModal = true;
+      };
+
+      const cerrarModalAprobacion = () => {
+        aprobaciones.mostrarModal = false;
+        aprobaciones.expedienteSeleccionado = null;
+      };
+
+      const guardarDictamenComite = () => {
+        // Lógica para guardar. Aquí se enviaría a Codigo.gs
+        alert("Dictamen de Comité registrado. Pasa a Resolución de Consejo.");
+        aprobaciones.tabActivo = 'consejo'; // Autómaticamente salta a la pestaña del Consejo
+      };
+
+      const formalizarResolucion = () => {
+        // 1. Backend: Enviar datos y firmar electrónicamente.
+        // 2. Transición de Estado Local
+        const index = listaSolicitudes.value.findIndex(s => s.id === aprobaciones.expedienteSeleccionado.id);
+        
+        if (formConsejo.decision === 'APROBADO') {
+          listaSolicitudes.value[index].estado = 'APROBADO';
+          alert("¡Aprobado! El socio ha sido dado de alta en el Padrón.");
+        } else {
+          listaSolicitudes.value[index].estado = 'RECHAZADO';
+          alert("Expediente Rechazado.");
+        }
+
+        cerrarModalAprobacion();
+      };
+      // --- ESTADO: PADRÓN DE SOCIOS (Profile 360) ---
+      const padron = reactive({
+        filtroBusqueda: '',
+        socioSeleccionado: null,
+        tabActivo: 'personales',
+        tabs: [
+          { id: 'personales', label: 'Datos Personales' },
+          { id: 'laborales', label: 'Laboral y Contacto' },
+          { id: 'accesos_web', label: 'Accesos Web' }
+          // Nota: Módulos como 'Grupo Familiar' y 'Bajas' los conectaremos usando sus vistas propias según el menú
+        ]
+      });
+
+      // Simulación de BD del Padrón Activo
+      const baseSociosActivos = ref([
+        { nro_socio: '12544', ci: '1.254.333', nombre_completo: 'PEREZ PEREZ, JUAN ANIBAL' },
+        { nro_socio: '14002', ci: '3.467.990', nombre_completo: 'CAPURRO, JOSE CARLOS' }, // El recién aprobado en la vista anterior
+        { nro_socio: '08544', ci: '855.102', nombre_completo: 'MACHADO, SUSANA BEATRIZ' }
+      ]);
+
+      // Filtro en tiempo real
+      const padronFiltrado = Vue.computed(() => {
+        if (!padron.filtroBusqueda) return baseSociosActivos.value;
+        
+        const query = padron.filtroBusqueda.toLowerCase();
+        return baseSociosActivos.value.filter(s => 
+          s.nombre_completo.toLowerCase().includes(query) || 
+          s.ci.includes(query) || 
+          s.nro_socio.includes(query)
+        );
+      });
+
+      // --- MÉTODOS: PADRÓN ---
+      const seleccionarSocio = (socio) => {
+        padron.socioSeleccionado = socio;
+        padron.tabActivo = 'personales'; // Reset a la primera pestaña
+      };
+      // --- ESTADO: GRUPO FAMILIAR ---
+      const grupoFamiliar = reactive({
+        busquedaSocio: '',
+        socioActivo: null,
+        mostrarModal: false
+      });
+
+      const formularioPariente = reactive({
+        id: null,
+        documento: '',
+        nombre: '',
+        relacion: 'HIJO/A',
+        nacimiento: '',
+        sexo: 'MASCULINO'
+      });
+
+      // Simulación de Base de Datos de Parientes (Relación 1:N simulada)
+      const baseParientes = ref([
+        { id: 101, socio_nro: '12544', documento: '4.294.168', nombre: 'PEREZ, MARCOS', relacion: 'HIJO/A', nacimiento: '15/06/2005' },
+        { id: 102, socio_nro: '12544', documento: '3.100.540', nombre: 'LOPEZ DE PEREZ, MARTA', relacion: 'CÓNYUGE', nacimiento: '20/08/1982' }
+      ]);
+
+      // Propiedad Computada: Solo trae los parientes del socio activo
+      const parientesDelSocio = Vue.computed(() => {
+        if (!grupoFamiliar.socioActivo) return [];
+        return baseParientes.value.filter(p => p.socio_nro === grupoFamiliar.socioActivo.nro_socio);
+      });
+
+      // --- MÉTODOS: GRUPO FAMILIAR ---
+      const buscarSocioParaFamilia = () => {
+        const query = grupoFamiliar.busquedaSocio.trim();
+        if (!query) return;
+
+        // Lógica de búsqueda simulada (En producción llama a google.script.run)
+        const socioEncontrado = baseSociosActivos.value.find(s => s.nro_socio === query || s.ci === query);
+        
+        if (socioEncontrado) {
+          grupoFamiliar.socioActivo = socioEncontrado;
+        } else {
+          alert("No se encontró ningún socio activo con ese identificador.");
+        }
+      };
+
+      const abrirModalPariente = () => {
+        formularioPariente.id = null;
+        formularioPariente.documento = '';
+        formularioPariente.nombre = '';
+        formularioPariente.relacion = 'HIJO/A';
+        formularioPariente.nacimiento = '';
+        formularioPariente.sexo = 'MASCULINO';
+        grupoFamiliar.mostrarModal = true;
+      };
+
+      const cerrarModalPariente = () => {
+        grupoFamiliar.mostrarModal = false;
+      };
+
+      const guardarPariente = () => {
+        // Insertar en la base de datos local simulada
+        baseParientes.value.push({
+          id: Date.now(),
+          socio_nro: grupoFamiliar.socioActivo.nro_socio,
+          documento: formularioPariente.documento,
+          nombre: formularioPariente.nombre.toUpperCase(),
+          relacion: formularioPariente.relacion,
+          // Convertimos la fecha del input YYYY-MM-DD al formato local DD/MM/YYYY
+          nacimiento: formularioPariente.nacimiento.split('-').reverse().join('/') 
+        });
+        
+        cerrarModalPariente();
+        alert("Pariente registrado exitosamente."); // Reemplazar por Toast UI
+      };
+
+      const eliminarPariente = (id) => {
+        if (confirm("¿Está seguro de eliminar este registro del grupo familiar?")) {
+          baseParientes.value = baseParientes.value.filter(p => p.id !== id);
+        }
+      };
+      // --- ESTADO Y MÉTODOS: MOVIMIENTOS Y BAJAS ---
+      const movimientos = reactive({
+        busquedaSocio: '',
+        socioActivo: null,
+        mostrarModal: false
+      });
+
+      const formEvento = reactive({
+        tipo: 'CARGO_DIRECTIVO',
+        titulo: '',
+        fechaInicio: '',
+        fechaFin: '',
+        detalle: ''
+      });
+
+      // Mock Data Timeline
+      const baseEventos = ref([
+        { id: 1, socio_nro: '12544', tipo: 'CARGO_DIRECTIVO', titulo: 'PRO-TESORERO', fecha_registro: '15/10/2026', descripcion_corta: 'Mandato 2026-2028', detalle: 'Aprobado mediante Asamblea Ordinaria.' }
+      ]);
+
+      const historialEventosSocio = Vue.computed(() => {
+        if(!movimientos.socioActivo) return [];
+        return baseEventos.value.filter(e => e.socio_nro === movimientos.socioActivo.nro_socio);
+      });
+
+      const buscarSocioParaMovimiento = () => {
+        const query = movimientos.busquedaSocio.trim();
+        const socioEncontrado = baseSociosActivos.value.find(s => s.nro_socio === query || s.ci === query);
+        if (socioEncontrado) movimientos.socioActivo = socioEncontrado;
+        else alert("No se encontró al socio activo.");
+      };
+
+      const abrirModalMovimiento = () => {
+        formEvento.titulo = ''; formEvento.detalle = '';
+        movimientos.mostrarModal = true;
+      };
+
+      const guardarEvento = () => {
+        baseEventos.value.unshift({
+          id: Date.now(),
+          socio_nro: movimientos.socioActivo.nro_socio,
+          tipo: formEvento.tipo,
+          titulo: formEvento.titulo.toUpperCase(),
+          fecha_registro: new Date().toLocaleDateString('es-PY'),
+          detalle: formEvento.detalle
+        });
+        movimientos.mostrarModal = false;
+        alert("Evento institucional registrado con éxito en la bitácora.");
+      };
+
+      // --- BAJAS Y RENUNCIAS ---
+      const bajas = reactive({
+        busquedaSocio: '',
+        socioActivo: null
+      });
+
+      const deudaValidacion = reactive({
+        conDeuda: false,
+        saldoPrestamos: 0,
+        saldoSolidaridad: 0,
+        aportesIntegrados: 0
+      });
+
+      const formBaja = reactive({
+        motivo: 'RENUNCIA_VOLUNTARIA',
+        acta: '',
+        observacion: ''
+      });
+
+      const buscarSocioParaBaja = () => {
+        const query = bajas.busquedaSocio.trim();
+        const socioEncontrado = baseSociosActivos.value.find(s => s.nro_socio === query || s.ci === query);
+        
+        if (socioEncontrado) {
+          bajas.socioActivo = socioEncontrado;
+          // Simulación del motor "Fase 1: Verificación de Obligaciones"
+          // En producción: google.script.run.verificarDeudaSocio(socioEncontrado.nro_socio)
+          if(query === '12544') { 
+              deudaValidacion.conDeuda = true;
+              deudaValidacion.saldoPrestamos = 12500000; // Tiene deuda activa! No puede salir.
+              deudaValidacion.aportesIntegrados = 3500000;
+          } else {
+              deudaValidacion.conDeuda = false;
+              deudaValidacion.saldoPrestamos = 0;
+              deudaValidacion.aportesIntegrados = 850000;
+          }
+        } else {
+          alert("No se encontró al socio en el Padrón.");
+        }
+      };
+
+      const ejecutarBaja = () => {
+        if(confirm(`¿Está seguro de ejecutar la baja definitiva de ${bajas.socioActivo.nombre_completo}? Esta acción liquidará los aportes y revocará su acceso.`)) {
+          alert(`Desvinculación exitosa. Se ha generado la orden de devolución de aportes por Gs. ${formatCurrency(deudaValidacion.aportesIntegrados)} a través de Tesorería.`);
+          bajas.socioActivo = null; // Reiniciar pantalla
+        }
+      };
+
+      // --- ESTADO: SOLICITUD DE CRÉDITO ---
+      const credito = reactive({
+        busquedaSocio: '',
+        socioActivo: null
+      });
+
+      const formCredito = reactive({
+        linea: 'ORDINARIO',
+        destino: 'CONSUMO',
+        monto: 5000000,
+        plazo: 12,
+        tasa: 18.5, // % Anual (Parametrizada)
+        garantia: 'SOLA_FIRMA',
+        codeudorId: ''
+      });
+
+      // Variables para la Proyección Matemática
+      const proformaGenerada = ref(false);
+      const cuotaCalculada = ref(0);
+      const totalInteresCalculado = ref(0);
+      const tablaAmortizacion = ref([]);
+
+      // --- MÉTODOS: SOLICITUD DE CRÉDITO ---
+      const buscarSocioParaCredito = () => {
+        const query = credito.busquedaSocio.trim();
+        const socioEncontrado = baseSociosActivos.value.find(s => s.nro_socio === query || s.ci === query);
+        
+        if (socioEncontrado) {
+          credito.socioActivo = socioEncontrado;
+          proformaGenerada.value = false;
+        } else {
+          alert("No se encontró al socio.");
+        }
+      };
+
+      const limpiarCredito = () => {
+        credito.socioActivo = null;
+        proformaGenerada.value = false;
+        formCredito.monto = 5000000;
+      };
+
+      // Algoritmo de Amortización Sistema Francés
+      const calcularProforma = () => {
+        if (formCredito.monto <= 0 || formCredito.plazo <= 0) return;
+
+        const tasaMensual = (formCredito.tasa / 100) / 12;
+        const n = formCredito.plazo;
+        const prestamo = formCredito.monto;
+
+        // Fórmula Cuota Sistema Francés: C = P * [i(1+i)^n] / [(1+i)^n - 1]
+        const cuota = prestamo * (tasaMensual * Math.pow(1 + tasaMensual, n)) / (Math.pow(1 + tasaMensual, n) - 1);
+        cuotaCalculada.value = Math.round(cuota); // Redondeo moneda Guaraní
+
+        // Generar Tabla
+        tablaAmortizacion.value = [];
+        let saldoRestante = prestamo;
+        let sumaInteres = 0;
+
+        for (let i = 1; i <= n; i++) {
+          let interesMes = saldoRestante * tasaMensual;
+          let amortizacionCapital = cuota - interesMes;
+          
+          saldoRestante -= amortizacionCapital;
+          sumaInteres += interesMes;
+
+          tablaAmortizacion.value.push({
+              numero: i,
+              capital: Math.round(amortizacionCapital),
+              interes: Math.round(interesMes),
+              saldo: Math.max(0, Math.round(saldoRestante))
+          });
+        }
+
+        totalInteresCalculado.value = Math.round(sumaInteres);
+        proformaGenerada.value = true;
+      };
+
+      // --- ESTADO: MAESTRO DE PRÉSTAMOS ---
+      const maestro = reactive({
+        busqueda: '',
+        prestamoActivo: null,
+        cuotasDelPrestamo: []
+      });
+
+      // Simulación Base de Datos de Préstamos Activos
+      const bdMaestroPrestamos = ref([
+        {
+          id: 1,
+          nro_prestamo: 'PR-2026-0901',
+          socio_id: '12544',
+          nombre_socio: 'PEREZ PEREZ, JUAN ANIBAL',
+          ci: '1.254.333',
+          tipo_linea: 'ORDINARIO',
+          fecha_desembolso: '01/05/2026',
+          monto_aprobado: 5000000,
+          saldo_capital: 3500000,
+          total_interes: 625000,
+          tasa: 15,
+          plazo_meses: 12,
+          situacion: 'VIGENTE',
+          calificacion: '1 (Normal)'
+        }
+      ]);
+
+      // Simulación de Tabla de Amortización (Cuotas Reales) del Préstamo 1
+      const bdCuotasReales = ref([
+        { prestamo_id: 1, nro_cuota: 1, vencimiento: '05/06/2026', capital: 388000, interes: 62500, total: 450500, estado: 'PAGADA' },
+        { prestamo_id: 1, nro_cuota: 2, vencimiento: '05/07/2026', capital: 393000, interes: 57500, total: 450500, estado: 'PAGADA' },
+        { prestamo_id: 1, nro_cuota: 3, vencimiento: '05/08/2026', capital: 398000, interes: 52500, total: 450500, estado: 'PAGADA' },
+        { prestamo_id: 1, nro_cuota: 4, vencimiento: '05/09/2026', capital: 403000, interes: 47500, total: 450500, estado: 'PAGADA' },
+        { prestamo_id: 1, nro_cuota: 5, vencimiento: '05/10/2026', capital: 408000, interes: 42500, total: 450500, estado: 'PENDIENTE' }, // Cuota Vencida
+        { prestamo_id: 1, nro_cuota: 6, vencimiento: '05/11/2026', capital: 413000, interes: 37500, total: 450500, estado: 'PENDIENTE' }
+      ]);
+
+      // --- MÉTODOS: MAESTRO ---
+      const buscarPrestamo = () => {
+        const query = maestro.busqueda.trim().toUpperCase();
+        if(!query) return;
+
+        // Lógica de Búsqueda: Buscar por Nro de Préstamo O por CI del socio (simulado)
+        const prestamoHallado = bdMaestroPrestamos.value.find(p => p.nro_prestamo === query || p.socio_id === query || p.ci === query);
+
+        if(prestamoHallado) {
+          maestro.prestamoActivo = prestamoHallado;
+          // Cargar cuotas vinculadas (SELECT * FROM cuotas WHERE prestamo_id = ?)
+          maestro.cuotasDelPrestamo = bdCuotasReales.value.filter(c => c.prestamo_id === prestamoHallado.id);
+        } else {
+          alert("No se halló ningún préstamo maestro con el código proporcionado.");
+        }
+      };
+
+      // Función helper para determinar visualmente si una cuota está vencida (en base a la fecha de hoy simulada en el contexto)
+      const isVencida = (fechaString) => {
+        // Convierte DD/MM/YYYY a Date object para comparar
+        const partes = fechaString.split('/');
+        const fechaVencimiento = new Date(partes[2], partes[1] - 1, partes[0]);
+        const hoy = new Date('2026-10-15'); // Usando la fecha actual de tu contexto
+        return fechaVencimiento < hoy;
+      };
+      // --- ESTADO: GARANTÍAS Y SEGUROS ---
+      const garantias = reactive({
+        busqueda: '',
+        prestamoActivo: null,
+        mostrarModal: false
+      });
+
+      // Modelo Polimórfico
+      const formGarantia = reactive({
+        tipo: 'CAUCION',
+        monto_total: 0,
+        // Campos Caución
+        caucion_cta: '',
+        // Campos Hipoteca
+        hipoteca_finca: '',
+        hipoteca_catastro: '',
+        hipoteca_escribania: '',
+        // Campos Seguro
+        seguro_compania: '',
+        seguro_poliza: '',
+        seguro_vencimiento: ''
+      });
+
+      // BD Mock de Garantías (Simulando "SELECT * FROM garantias WHERE prestamo_id = ?")
+      const bdGarantias = ref([
+        { id: 10, prestamo_id: 1, tipo: 'CAUCION', descripcion: 'Bloqueo Ahorro Vista CA-1209', monto_total: 1500000 },
+        { id: 11, prestamo_id: 1, tipo: 'HIPOTECARIA', descripcion: 'Finca Nro 4455 / Esc. Florentín', monto_total: 80000000 }
+      ]);
+
+      const garantiasRegistradas = Vue.computed(() => {
+        if(!garantias.prestamoActivo) return [];
+        return bdGarantias.value.filter(g => g.prestamo_id === garantias.prestamoActivo.id);
+      });
+
+      // --- MÉTODOS: GARANTÍAS ---
+      const buscarPrestamoGarantia = () => {
+        const query = garantias.busqueda.trim().toUpperCase();
+        // (Utiliza bdMaestroPrestamos creada en la sección anterior)
+        const prestamoHallado = bdMaestroPrestamos.value.find(p => p.nro_prestamo === query || p.ci === query);
+        
+        if (prestamoHallado) garantias.prestamoActivo = prestamoHallado;
+        else alert("Operación no encontrada.");
+      };
+
+      const abrirModalNuevaGarantia = () => {
+        // Limpiar campos
+        Object.keys(formGarantia).forEach(k => {
+          if(k === 'tipo') formGarantia[k] = 'CAUCION';
+          else if(k === 'monto_total') formGarantia[k] = 0;
+          else formGarantia[k] = '';
+        });
+        garantias.mostrarModal = true;
+      };
+
+      const cerrarModalGarantia = () => garantias.mostrarModal = false;
+
+      const guardarGarantia = () => {
+        let descripcionExtra = '';
+        
+        // Lógica polimórfica para armar la descripción corta
+        if (formGarantia.tipo === 'CAUCION') descripcionExtra = `Bloqueo ${formGarantia.caucion_cta}`;
+        if (formGarantia.tipo === 'HIPOTECARIA') descripcionExtra = `Finca ${formGarantia.hipoteca_finca} / Esc. ${formGarantia.hipoteca_escribania}`;
+        if (formGarantia.tipo === 'POLIZA_SEGURO') descripcionExtra = `Pol: ${formGarantia.seguro_poliza} (${formGarantia.seguro_compania})`;
+        if (formGarantia.tipo === 'PRENDARIA') descripcionExtra = `Prenda Vehicular`;
+
+        // Insertar en la matriz de la BD
+        bdGarantias.value.push({
+          id: Date.now(),
+          prestamo_id: garantias.prestamoActivo.id,
+          tipo: formGarantia.tipo,
+          descripcion: descripcionExtra,
+          monto_total: formGarantia.monto_total
+        });
+
+        alert("Garantía asentada correctamente sobre la operación crediticia.");
+        cerrarModalGarantia();
+      };
+
+      // UI Helpers
+      const iconoGarantia = (tipo) => {
+        const icons = { 'CAUCION': 'ph-piggy-bank', 'HIPOTECARIA': 'ph-house', 'PRENDARIA': 'ph-car', 'POLIZA_SEGURO': 'ph-file-lock' };
+        return icons[tipo] || 'ph-file';
+      };
+
+      const colorGarantia = (tipo) => {
+        const colors = { 
+          'CAUCION': 'bg-emerald-100 text-emerald-800 border-emerald-200', 
+          'HIPOTECARIA': 'bg-amber-100 text-amber-800 border-amber-200', 
+          'POLIZA_SEGURO': 'bg-blue-100 text-blue-800 border-blue-200',
+          'PRENDARIA': 'bg-purple-100 text-purple-800 border-purple-200' 
+        };
+        return colors[tipo] || 'bg-slate-100 text-slate-800';
+      };
+
+      // --- ESTADO: AHORROS (ACTUALIZADO) ---
+      const ahorros = reactive({
+        busquedaSocio: '',
+        socioActivo: null,
+        cuentaSeleccionada: null,
+        mostrarModal: false
+      });
+
+      const formCuenta = reactive({
+        tipo: 'A LA VISTA',
+        deposito: 50000,
+        plazo: 12, // Ahora actúa como Días (CDA) o Meses (Programado) según el contexto
+        tasa: 8.5,
+        meta: 12000000 // Para Ahorro Programado
+      });
+
+      // Mock Base de Datos Cuentas Ampliada
+      const bdCuentasAhorro = ref([
+        { socio_nro: '12544', nro_cuenta: 'CA-100028', tipo: 'A LA VISTA', fecha_apertura: '10/01/2020', saldo_contable: 8500000, saldo_bloqueado: 1500000 },
+        { socio_nro: '12544', nro_cuenta: 'DPF-5009', tipo: 'PLAZO FIJO', fecha_apertura: '01/05/2026', fecha_vencimiento: '27/10/2026', tasa_interes: 9.5, saldo_contable: 20000000, saldo_bloqueado: 20000000 },
+        { socio_nro: '12544', nro_cuenta: 'AP-8044', tipo: 'PROGRAMADO', fecha_apertura: '15/02/2026', meta_ahorro: 50000000, cuota_mensual: 1041666, saldo_contable: 8333328, saldo_bloqueado: 0 }
+      ]);
+
+      const cuentasDelSocio = Vue.computed(() => {
+        if(!ahorros.socioActivo) return [];
+        return bdCuentasAhorro.value.filter(c => c.socio_nro === ahorros.socioActivo.nro_socio);
+      });
+
+      // --- MÉTODOS: AHORROS ---
+      const buscarSocioParaAhorro = () => {
+        const query = ahorros.busquedaSocio.trim();
+        const socioEncontrado = baseSociosActivos.value.find(s => s.nro_socio === query || s.ci === query);
+        
+        if (socioEncontrado) {
+          ahorros.socioActivo = socioEncontrado;
+          ahorros.cuentaSeleccionada = null; 
+        } else {
+          alert("No se encontró al socio.");
+        }
+      };
+
+      const seleccionarCuenta = (cuenta) => ahorros.cuentaSeleccionada = cuenta;
+
+      const abrirModalApertura = () => {
+        formCuenta.tipo = 'A LA VISTA';
+        formCuenta.deposito = 50000;
+        formCuenta.plazo = 12;
+        formCuenta.tasa = 8.5;
+        formCuenta.meta = 12000000;
+        ahorros.mostrarModal = true;
+      };
+
+      const guardarCuenta = () => {
+        // Validación para Ahorro Programado
+        if (formCuenta.tipo === 'PROGRAMADO') {
+          const cuotaMinima = Math.round(formCuenta.meta / formCuenta.plazo);
+          if (formCuenta.deposito < cuotaMinima) {
+              alert(`Para el ahorro programado, el depósito inicial debe cubrir al menos la primera cuota (Gs. ${formatCurrency(cuotaMinima)}).`);
+              return;
+          }
+        }
+
+        // Generación Dinámica de Prefijo
+        const prefijos = { 'A LA VISTA': 'CA-', 'PLAZO FIJO': 'CDA-', 'PROGRAMADO': 'AP-', 'INFANTO JUVENIL': 'IJ-' };
+        const numeroGenerado = prefijos[formCuenta.tipo] + Math.floor(Math.random() * 90000 + 10000);
+        
+        const nuevaCuenta = {
+          socio_nro: ahorros.socioActivo.nro_socio,
+          nro_cuenta: numeroGenerado,
+          tipo: formCuenta.tipo,
+          fecha_apertura: new Date().toLocaleDateString('es-PY'),
+          saldo_contable: formCuenta.deposito,
+          saldo_bloqueado: (formCuenta.tipo === 'PLAZO FIJO') ? formCuenta.deposito : 0
+        };
+
+        // Añadir metadata según producto
+        if (formCuenta.tipo === 'PLAZO FIJO') {
+          nuevaCuenta.tasa_interes = formCuenta.tasa;
+          const fec = new Date();
+          fec.setDate(fec.getDate() + formCuenta.plazo); // Suma Días
+          nuevaCuenta.fecha_vencimiento = fec.toLocaleDateString('es-PY');
+        } else if (formCuenta.tipo === 'PROGRAMADO') {
+          nuevaCuenta.meta_ahorro = formCuenta.meta;
+          nuevaCuenta.cuota_mensual = Math.round(formCuenta.meta / formCuenta.plazo);
+        }
+
+        bdCuentasAhorro.value.push(nuevaCuenta);
+        alert(`La cuenta ${numeroGenerado} ha sido aperturada. Envíe al socio a Caja para depositar los Gs. ${formatCurrency(formCuenta.deposito)}.`);
+        ahorros.mostrarModal = false;
+      };
+
+      // UI Helper
+      const colorTipoAhorro = (tipo) => {
+        const colors = {
+          'A LA VISTA': 'bg-emerald-100 text-emerald-800',
+          'PLAZO FIJO': 'bg-purple-100 text-purple-800',
+          'PROGRAMADO': 'bg-blue-100 text-blue-800',
+          'INFANTO JUVENIL': 'bg-pink-100 text-pink-800'
+        };
+        return colors[tipo] || 'bg-slate-100 text-slate-800';
+      };
+
+      // Computed Properties de Caja
+      const caja_saldoEfectivo = Vue.computed(() => {
+        return caja.montoApertura + caja.totalCobradoTurno;
+      });
+      const totalBoleta = Vue.computed(() => {
+        return caja.carrito.reduce((acc, item) => acc + item.monto, 0);
+      });
+      const vueltoCobro = Vue.computed(() => {
+        if (!caja.efectivoRecibido || caja.efectivoRecibido === 0) return -1;
+        return caja.efectivoRecibido - totalBoleta.value;
+      });
+      const diferenciaArqueo = Vue.computed(() => {
+        return caja.montoArqueoDeclarado - caja_saldoEfectivo.value;
+      });
+
+      // --- ESTADO: TESORERÍA (Back-office) ---
+      const tesoreria = reactive({
+        deudaTerceros: 850000,
+        arqueosPendientes: []
+      });
+
+      // Mock de BD de Deudas
+      const bdDeudas = [
+        { id: 1, nro_socio: '12544', categoria: 'PRÉSTAMO', descripcion: 'Cuota 5/12 (PR-2026-0901)', referencia: 'Vto: 05/10/2026', monto: 450500, tipo: 'INTERNO' },
+        { id: 2, nro_socio: '12544', categoria: 'APORTE', descripcion: 'Solidaridad Octubre', referencia: 'Vto: 10/10/2026', monto: 30000, tipo: 'INTERNO' }
+      ];
+
+      const bdDeudasTerceros = [
+        { id: 3, facturador: 'ANDE', categoria: 'ANDE', descripcion: 'Factura Energía Eléctrica', referencia: 'NIS: 123456', monto: 185000, tipo: 'EXTERNO' },
+        { id: 4, facturador: 'JAHA', categoria: 'TRANSPORTE', descripcion: 'Recarga Tarjeta Billetaje', referencia: 'Nro: 998877', monto: 50000, tipo: 'EXTERNO' }
+      ];
+
+      // --- MÉTODOS: CAJA ---
+      const abrirCaja = () => {
+        if (caja.montoApertura <= 0) { alert("Debe declarar un monto inicial válido."); return; }
+        caja.totalCobradoTurno = 0;
+        caja.carrito = [];
+        caja.efectivoRecibido = 0;
+        caja.estado = 'ABIERTA';
+        alert(`Caja habilitada con Gs. ${formatCurrency(caja.montoApertura)}.`);
+      };
+
+      const buscarDeudasSocio = () => {
+        // Simulación: trae las deudas de bdDeudas asociadas al socio buscado
+        caja.deudasConsultadas = bdDeudas;
+      };
+
+      const consultarFacturaTercero = () => {
+        // Simulación: trae deuda externa
+        caja.deudasConsultadas = bdDeudasTerceros.filter(d => d.facturador === caja.servicioSeleccionado);
+        if(caja.deudasConsultadas.length === 0) alert("No se encontraron deudas para ese servicio.");
+      };
+
+      const agregarAlCarrito = (item) => {
+        if(!caja.carrito.find(i => i.id === item.id)) caja.carrito.push(item);
+      };
+      const quitarDelCarrito = (index) => caja.carrito.splice(index, 1);
+
+      const procesarCobro = () => {
+        if(vueltoCobro.value < 0) return;
+        
+        // 1. Ingresar plata a caja
+        caja.totalCobradoTurno += totalBoleta.value;
+        
+        // 2. Si hay cobros externos, sumar a la deuda global de tesoreria
+        caja.carrito.forEach(item => {
+          if(item.tipo === 'EXTERNO') tesoreria.deudaTerceros += item.monto;
+        });
+
+        alert(`Imprimiendo Recibo... Cobro exitoso. Vuelto entregado: Gs. ${formatCurrency(vueltoCobro.value)}`);
+        
+        // Limpiar vista
+        caja.carrito = [];
+        caja.efectivoRecibido = 0;
+        caja.deudasConsultadas = [];
+      };
+
+      const iniciarArqueo = () => {
+        caja.montoArqueoDeclarado = caja_saldoEfectivo.value; // Pre-cargar ideal (el cajero igual lo cambia)
+        caja.mostrarArqueo = true;
+      };
+
+      const confirmarCierreCaja = () => {
+        // Enviar el reporte a la bandeja del Tesorero (Vue data bind)
+        tesoreria.arqueosPendientes.push({
+          id: Date.now(),
+          fecha: new Date().toLocaleString('es-PY'),
+          sucursal: tenant.sucursal, // Variable global Multi-tenant
+          cajero: tenant.user,
+          declarado: caja.montoArqueoDeclarado,
+          diferencia: diferenciaArqueo.value
+        });
+        
+        caja.mostrarArqueo = false;
+        caja.estado = 'CERRADA';
+        caja.montoApertura = 0;
+        alert("Caja cerrada. Arqueo enviado a Tesorería.");
+      };
+
+      // --- MÉTODOS: TESORERÍA ---
+      const aprobarArqueo = (arqId) => {
+        tesoreria.arqueosPendientes = tesoreria.arqueosPendientes.filter(a => a.id !== arqId);
+        alert("Arqueo aprobado. Efectivo transferido contablemente a Bóveda Central.");
+      };
+
+      // --- ESTADO: BENEFICIOS Y CONVENIOS ---
+      const beneficios = reactive({
+        subTab: 'convenios',
+        mostrarModalConvenio: false,
+        mostrarModalSubsidio: false
+      });
+
+      const formConvenio = reactive({ entidad: '', ruc: '', desde: '', hasta: '', descuento: '' });
+      const formSubsidio = reactive({ socio: '', destino: 'SALUD Y RECUPERACIÓN', importe: 500000 });
+
+      const baseConvenios = ref([
+        { id: 1, entidad: 'UNIVERSIDAD CATÓLICA (UCA)', ruc: '80011223-4', vigencia: '01/01/2026 al 31/12/2026', descuento: '15% Aranceles' },
+        { id: 2, entidad: 'ODONTOLOGÍA INTEGRAL S.A.', ruc: '80044556-1', vigencia: '15/03/2026 al 15/03/2027', descuento: '30% Consultas' }
+      ]);
+
+      const baseSubsidios = ref([
+        { id: 1, nro: 'SUB-2026-004', socio: 'PEREZ PEREZ, JUAN ANIBAL', destino: 'SALUD Y RECUPERACIÓN', importe: 1200000, estado: 'PENDIENTE COMITÉ' }
+      ]);
+
+      // --- MÉTODOS ---
+      const abrirModalConvenio = () => beneficios.mostrarModalConvenio = true;
+      const guardarConvenio = () => {
+        baseConvenios.value.push({
+            id: Date.now(),
+            entidad: formConvenio.entidad.toUpperCase(),
+            ruc: formConvenio.ruc,
+            vigencia: `${formConvenio.desde.split('-').reverse().join('/')} al ${formConvenio.hasta.split('-').reverse().join('/')}`,
+            descuento: formConvenio.descuento
+        });
+        beneficios.mostrarModalConvenio = false;
+        alert("Convenio registrado con éxito.");
+      };
+
+      const abrirModalSubsidio = () => beneficios.mostrarModalSubsidio = true;
+      const guardarSubsidio = () => {
+        baseSubsidios.value.push({
+            id: Date.now(),
+            nro: 'SUB-2026-00' + (baseSubsidios.value.length + 1),
+            socio: 'SOCIO NRO: ' + formSubsidio.socio,
+            destino: formSubsidio.destino,
+            importe: formSubsidio.importe,
+            estado: 'PENDIENTE COMITÉ'
+        });
+        beneficios.mostrarModalSubsidio = false;
+        alert("Solicitud de subsidio creada y derivada a Comité de Solidaridad.");
+      };
+
+      // --- ESTADO: APORTES ESPECIALES ---
+      const aportesEsp = reactive({
+        mostrarModal: false
+      });
+
+      const formAporte = reactive({
+        codigo: '',
+        descripcion: '',
+        cuota: 50000
+      });
+
+      const baseAportesEspeciales = ref([
+        { id: 1, codigo: 'APC-01', descripcion: 'Aporte Especial para Construcción (Sede Central)', cuota: 50000, adheridos: 1250 },
+        { id: 2, codigo: 'APF-02', descripcion: 'Fondo de Solidaridad Mutua Anual', cuota: 30000, adheridos: 2100 }
+      ]);
+
+      const guardarPlanAporte = () => {
+        baseAportesEspeciales.value.push({
+            id: Date.now(),
+            codigo: formAporte.codigo.toUpperCase(),
+            descripcion: formAporte.descripcion,
+            cuota: formAporte.cuota,
+            adheridos: 0
+        });
+        aportesEsp.mostrarModal = false;
+        alert("Plan de aporte especial creado correctamente.");
+      };
+
+      // --- ESTADO: SOLICITUD DE INGRESO (ADMISIÓN) ---
+      const admision = reactive({
+        subTab: 'formulario', // 'formulario' | 'listado'
+        filtroEstado: 'TODOS',
+        filtroTexto: ''
+      });
+
+      const formAdmision = reactive({
+        nro_solicitud: '2026-' + Math.floor(100 + Math.random() * 900),
+        tipo_documento: 'CEDULA DE IDENTIDAD',
+        nro_documento: '',
+        fecha_nacimiento: '1995-05-15',
+        sexo: 'M',
+        estado_civil: 'SOLTERO/A',
+        nombres: '',
+        apellidos: '',
+        telefono: '',
+        email: '',
+        ciudad: 'ASUNCIÓN',
+        profesion: '',
+        fecha_charla: new Date().toISOString().split('T')[0],
+        instructor: 'LIC. MARCOS BENITEZ',
+        promocion: 'NINGUNA (TASA NORMAL)',
+        prop1_codigo: '',
+        prop1_nombre: '',
+        prop2_codigo: '',
+        prop2_nombre: ''
+      });
+
+      // Propiedad Computada para filtrar el Padroncillo de Postulantes
+      const listadoAdmisionFiltrado = Vue.computed(() => {
+        return listaSolicitudes.value.filter(s => {
+          const pasaEstado = admision.filtroEstado === 'TODOS' || s.estado === admision.filtroEstado;
+          const texto = admision.filtroTexto.toLowerCase();
+          const pasaTexto = !texto || s.nombre_completo.toLowerCase().includes(texto) || s.nro_documento.includes(texto) || s.nro_solicitud.toLowerCase().includes(texto);
+          return pasaEstado && pasaTexto;
+        });
+      });
+
+      // --- MÉTODOS: SOLICITUD DE INGRESO ---
+      const verificarDuplicadoPostulante = () => {
+        const doc = formAdmision.nro_documento.trim();
+        if (!doc) return;
+        const existeEnPadron = baseSociosActivos.value.find(s => s.ci === doc);
+        if (existeEnPadron) {
+          alert(`ALERTA: La persona con CI ${doc} ya es SOCIO ACTIVO (${existeEnPadron.nombre_completo} - Socio Nro. ${existeEnPadron.nro_socio}).`);
+        } else {
+          alert("Documento disponible. El postulante no registra matrícula previa.");
+        }
+      };
+
+      const buscarProponente = (numProp) => {
+        const query = (numProp === 1 ? formAdmision.prop1_codigo : formAdmision.prop2_codigo).trim();
+        if (!query) return;
+        
+        const socio = baseSociosActivos.value.find(s => s.nro_socio === query || s.ci === query);
+        if (socio) {
+          if (numProp === 1) formAdmision.prop1_nombre = socio.nombre_completo;
+          else formAdmision.prop2_nombre = socio.nombre_completo;
+        } else {
+          alert("No se encontró ningún socio activo con ese Nro. o Cédula para actuar como proponente.");
+          if (numProp === 1) formAdmision.prop1_nombre = '';
+          else formAdmision.prop2_nombre = '';
+        }
+      };
+
+      const limpiarFormularioAdmision = () => {
+        formAdmision.nro_solicitud = '2026-' + Math.floor(100 + Math.random() * 900);
+        formAdmision.nro_documento = '';
+        formAdmision.nombres = '';
+        formAdmision.apellidos = '';
+        formAdmision.telefono = '';
+        formAdmision.email = '';
+        formAdmision.profesion = '';
+        formAdmision.prop1_codigo = '';
+        formAdmision.prop1_nombre = '';
+        formAdmision.prop2_codigo = '';
+        formAdmision.prop2_nombre = '';
+      };
+
+      const registrarSolicitudIngreso = () => {
+        const nombreFormateado = `${formAdmision.apellidos.trim().toUpperCase()}, ${formAdmision.nombres.trim().toUpperCase()}`;
+        
+        // Insertamos en la misma lista reactiva que lee Mesa de Entrada
+        listaSolicitudes.value.unshift({
+          id: Date.now(),
+          fecha: new Date().toLocaleDateString('es-PY'),
+          nro_solicitud: formAdmision.nro_solicitud,
+          nro_documento: formAdmision.nro_documento,
+          nombre_completo: nombreFormateado,
+          telefono: formAdmision.telefono,
+          promocion: formAdmision.promocion,
+          proponente: formAdmision.prop1_nombre || 'Directo',
+          estado: 'PENDIENTE_RECEPCION'
+        });
+
+        alert(`Solicitud ${formAdmision.nro_solicitud} generada para ${nombreFormateado}. Derivada a Mesa de Entrada para control documental físico.`);
+        limpiarFormularioAdmision();
+        admision.subTab = 'listado'; // Lleva al usuario a ver la fila recién creada
+      };
+
+      // --- ESTADO: BANDEJA DE APROBACIÓN DE CRÉDITOS ---
+      const aprobCredito = reactive({
+        filtroEstado: 'TODOS',
+        seleccionada: null
+      });
+
+      const formDictamenCredito = reactive({
+        nro_acta: 'ACTA-CC-2026/045',
+        medio_desembolso: 'ACREDITACION AHORRO VISTA',
+        observacion: ''
+      });
+
+      // Lista reactiva de solicitudes de crédito pendientes de aprobación
+      const listaSolicitudesCredito = ref([
+        {
+          id: 501,
+          nro_solicitud: 'SOL-CR-2026-104',
+          fecha: '14/10/2026',
+          socio_id: '12544',
+          ci: '1.254.333',
+          nombre_socio: 'PEREZ PEREZ, JUAN ANIBAL',
+          linea: 'ORDINARIO',
+          destino: 'CONSUMO',
+          monto: 12000000,
+          plazo: 18,
+          tasa: 16.5,
+          garantia: 'SOLA_FIRMA',
+          cuota_estimada: 756800,
+          total_interes: 1622400,
+          aportes_socio: 3500000,
+          estado: 'PENDIENTE_COMITE'
+        },
+        {
+          id: 502,
+          nro_solicitud: 'SOL-CR-2026-105',
+          fecha: '15/10/2026',
+          socio_id: '14002',
+          ci: '2.890.111',
+          nombre_socio: 'GOMEZ DE LOPEZ, MARIA ELENA',
+          linea: 'EXTRAORDINARIO',
+          destino: 'VIVIENDA',
+          monto: 35000000,
+          plazo: 36,
+          tasa: 18.0,
+          garantia: 'CODEUDOR',
+          cuota_estimada: 1265300,
+          total_interes: 10550800,
+          aportes_socio: 5200000,
+          estado: 'PENDIENTE_CONSEJO'
+        }
+      ]);
+
+      const solicitudesCreditoFiltradas = Vue.computed(() => {
+        if (aprobCredito.filtroEstado === 'TODOS') return listaSolicitudesCredito.value;
+        return listaSolicitudesCredito.value.filter(s => s.estado === aprobCredito.filtroEstado);
+      });
+
+      const seleccionarSolicitudCredito = (sol) => {
+        aprobCredito.seleccionada = sol;
+        formDictamenCredito.nro_acta = sol.estado === 'PENDIENTE_COMITE' ? 'ACTA-CC-2026/' + Math.floor(10 + Math.random()*89) : 'RES-CA-2026/' + Math.floor(10 + Math.random()*89);
+        formDictamenCredito.observacion = '';
+      };
+
+      const elevarAConsejoCredito = () => {
+        if (!aprobCredito.seleccionada) return;
+        aprobCredito.seleccionada.estado = 'PENDIENTE_CONSEJO';
+        aprobCredito.seleccionada.acta_resolucion = formDictamenCredito.nro_acta;
+        alert(`Dictamen favorable del Comité (${formDictamenCredito.nro_acta}). Expediente elevado al Consejo de Administración.`);
+      };
+
+      const rechazarSolicitudCredito = () => {
+        if (!aprobCredito.seleccionada) return;
+        if (confirm(`¿Confirma el RECHAZO de la solicitud ${aprobCredito.seleccionada.nro_solicitud}?`)) {
+          aprobCredito.seleccionada.estado = 'RECHAZADO';
+          aprobCredito.seleccionada.acta_resolucion = formDictamenCredito.nro_acta;
+        }
+      };
+
+      // Cuando se aprueba, nace automáticamente en el Maestro de Préstamos
+      const aprobarYDesembolsarCredito = () => {
+        const sol = aprobCredito.seleccionada;
+        if (!sol) return;
+        if (!formDictamenCredito.nro_acta.trim()) {
+          alert("Debe ingresar el Nro. de Acta de resolución.");
+          return;
+        }
+
+        sol.estado = 'APROBADO';
+        sol.acta_resolucion = formDictamenCredito.nro_acta;
+
+        const nuevoIdPrestamo = Date.now();
+        const codigoPrestamo = 'PR-2026-' + Math.floor(1000 + Math.random() * 9000);
+
+        // 1. Insertar en el Maestro de Préstamos
+        bdMaestroPrestamos.value.unshift({
+          id: nuevoIdPrestamo,
+          nro_prestamo: codigoPrestamo,
+          socio_id: sol.socio_id,
+          nombre_socio: sol.nombre_socio,
+          ci: sol.ci,
+          tipo_linea: sol.linea,
+          fecha_desembolso: new Date().toLocaleDateString('es-PY'),
+          monto_aprobado: sol.monto,
+          saldo_capital: sol.monto,
+          total_interes: sol.total_interes || Math.round(sol.monto * 0.18),
+          tasa: sol.tasa,
+          plazo_meses: sol.plazo,
+          situacion: 'VIGENTE',
+          calificacion: '1 (Normal)'
+        });
+
+        // 2. Generar las primeras cuotas reales en bdCuotasReales para el Maestro
+        const capitalCuota = Math.round(sol.monto / sol.plazo);
+        const interesCuota = Math.round((sol.total_interes || (sol.monto * 0.15)) / sol.plazo);
+        for (let i = 1; i <= sol.plazo; i++) {
+          const fechaVto = new Date();
+          fechaVto.setMonth(fechaVto.getMonth() + i);
+          bdCuotasReales.value.push({
+            prestamo_id: nuevoIdPrestamo,
+            nro_cuota: i,
+            vencimiento: fechaVto.toLocaleDateString('es-PY'),
+            capital: capitalCuota,
+            interes: interesCuota,
+            total: sol.cuota_estimada || (capitalCuota + interesCuota),
+            estado: 'PENDIENTE'
+          });
+        }
+
+        alert(`¡Crédito Aprobado según ${formDictamenCredito.nro_acta}! Se ha generado la operación ${codigoPrestamo} en el Maestro de Préstamos (${formDictamenCredito.medio_desembolso}).`);
+      };
+
+      // REEMPLAZAR ESTA FUNCIÓN EN EL BLOQUE DE SOLICITUD DE CRÉDITO PARA QUE CAIGA EN ESTA BANDEJA:
+      const enviarAMesaDeEntrada = () => {
+        if (!credito.socioActivo) return;
+        const nroSol = 'SOL-CR-2026-' + Math.floor(110 + Math.random() * 800);
+        
+        listaSolicitudesCredito.value.unshift({
+          id: Date.now(),
+          nro_solicitud: nroSol,
+          fecha: new Date().toLocaleDateString('es-PY'),
+          socio_id: credito.socioActivo.nro_socio,
+          ci: credito.socioActivo.ci,
+          nombre_socio: credito.socioActivo.nombre_completo,
+          linea: formCredito.linea,
+          destino: formCredito.destino,
+          monto: formCredito.monto,
+          plazo: formCredito.plazo,
+          tasa: formCredito.tasa,
+          garantia: formCredito.garantia,
+          cuota_estimada: cuotaCalculada.value,
+          total_interes: totalInteresCalculado.value,
+          aportes_socio: 3500000,
+          estado: 'PENDIENTE_COMITE'
+        });
+
+        alert(`Solicitud ${nroSol} generada y enviada a la bandeja de Aprobación de Créditos.`);
+        limpiarCredito();
+        cambiarVista('aprobacion_creditos');
+      };
+
+      // --- ESTADO: ACTIVO FIJO (INVENTARIO Y DEPRECIACIÓN) ---
+      const activos = reactive({
+        filtroRubro: 'TODOS',
+        filtroSucursal: 'TODAS',
+        busqueda: '',
+        mostrarModalAlta: false,
+        mostrarModalTraslado: false
+      });
+
+      const formActivo = reactive({
+        codigo: 'AF-2026-004',
+        rubro: 'EQUIPOS DE INFORMÁTICA',
+        descripcion: '',
+        nro_serie: '',
+        factura: '',
+        fecha_compra: new Date().toISOString().split('T')[0],
+        costo_inicial: 6500000,
+        vida_util_total: 4,
+        sucursal: 'CASA CENTRAL',
+        responsable: ''
+      });
+
+      const formTraslado = reactive({
+        activo_id: 1,
+        nueva_sucursal: 'AGENCIA SAN LORENZO',
+        nuevo_responsable: ''
+      });
+
+      const depreciacion = reactive({
+        periodo: 2026,
+        coeficiente: 1.042 // Ej. 4,2% de inflación anual IPC BCP
+      });
+
+      // Padrón Mock de Bienes de Uso
+      const listaActivosFijos = ref([
+        {
+          id: 1,
+          codigo: 'AF-2024-001',
+          descripcion: 'SERVIDOR RACK DELL POWEREDGE R550',
+          nro_serie: 'DELL-99812-PY',
+          factura: '001-002-0019283',
+          rubro: 'EQUIPOS DE INFORMÁTICA',
+          fecha_compra: '10/01/2024',
+          sucursal: 'CASA CENTRAL',
+          responsable: 'DPTO. TIC - ING. MARCOS VERA',
+          costo_inicial: 32000000,
+          depreciacion_acumulada: 16000000,
+          valor_neto: 16000000,
+          vida_util_total: 4,
+          vida_util_restante: 2,
+          estado: 'ACTIVO'
+        },
+        {
+          id: 2,
+          codigo: 'AF-2025-002',
+          descripcion: 'CAMIONETA UTILITARIA TOYOTA HILUX 4X2',
+          nro_serie: '8AJBA3CD901293',
+          factura: '001-001-0088412',
+          rubro: 'RODADOS',
+          fecha_compra: '15/03/2025',
+          sucursal: 'CASA CENTRAL',
+          responsable: 'ADMINISTRACIÓN GENERAL',
+          costo_inicial: 185000000,
+          depreciacion_acumulada: 37000000,
+          valor_neto: 148000000,
+          vida_util_total: 5,
+          vida_util_restante: 4,
+          estado: 'ACTIVO'
+        },
+        {
+          id: 3,
+          codigo: 'AF-2025-003',
+          descripcion: 'LOTE MOBILIARIO ATENCIÓN AL SOCIO (8 PUESTOS)',
+          nro_serie: 'LOTE-MOB-2025',
+          factura: '002-001-0004120',
+          rubro: 'MUEBLES Y ÚTILES',
+          fecha_compra: '20/06/2025',
+          sucursal: 'AGENCIA SAN LORENZO',
+          responsable: 'JEFATURA DE AGENCIA',
+          costo_inicial: 24000000,
+          depreciacion_acumulada: 2400000,
+          valor_neto: 21600000,
+          vida_util_total: 10,
+          vida_util_restante: 9,
+          estado: 'ACTIVO'
+        }
+      ]);
+
+      // Computadas de Inventario
+      const activosFiltrados = Vue.computed(() => {
+        return listaActivosFijos.value.filter(a => {
+          const pasaRubro = activos.filtroRubro === 'TODOS' || a.rubro === activos.filtroRubro;
+          const pasaSuc = activos.filtroSucursal === 'TODAS' || a.sucursal === activos.filtroSucursal;
+          const q = activos.busqueda.toLowerCase();
+          const pasaTexto = !q || a.codigo.toLowerCase().includes(q) || a.descripcion.toLowerCase().includes(q) || a.nro_serie.toLowerCase().includes(q);
+          return pasaRubro && pasaSuc && pasaTexto;
+        });
+      });
+
+      const resumenActivos = Vue.computed(() => {
+        return listaActivosFijos.value.reduce((acc, item) => {
+          if (item.estado === 'ACTIVO') {
+            acc.costoHistorico += item.costo_inicial;
+            acc.depreciacionAcumulada += item.depreciacion_acumulada;
+            acc.valorNetoTotal += item.valor_neto;
+          }
+          return acc;
+        }, { costoHistorico: 0, depreciacionAcumulada: 0, valorNetoTotal: 0 });
+      });
+
+      // Computada del Cuadro de Revalúo y Depreciación Proyectado
+      const cuadroDepreciacionProyectado = Vue.computed(() => {
+        const coef = depreciacion.coeficiente || 1;
+        return listaActivosFijos.value.filter(a => a.estado === 'ACTIVO').map(bien => {
+          const valorRevaluado = Math.round(bien.valor_neto * coef);
+          const cuotaAnual = bien.vida_util_restante > 0 ? Math.round(valorRevaluado / bien.vida_util_restante) : 0;
+          const nuevoValorNeto = Math.max(0, valorRevaluado - cuotaAnual);
+          return {
+            ...bien,
+            valorRevaluado,
+            cuotaDepreciacionAnual: cuotaAnual,
+            nuevaDeprecAcumulada: bien.depreciacion_acumulada + cuotaAnual,
+            nuevoValorNeto
+          };
+        });
+      });
+
+      const totalesCuadroDepreciacion = Vue.computed(() => {
+        return cuadroDepreciacionProyectado.value.reduce((acc, item) => {
+          acc.totalCuotaAnual += item.cuotaDepreciacionAnual;
+          acc.totalNuevoNeto += item.nuevoValorNeto;
+          return acc;
+        }, { totalCuotaAnual: 0, totalNuevoNeto: 0 });
+      });
+
+      // Métodos de Activo Fijo
+      const asignarVidaUtilPorRubro = () => {
+        const tabla = { 'EQUIPOS DE INFORMÁTICA': 4, 'MUEBLES Y ÚTILES': 10, 'RODADOS': 5, 'INMUEBLES': 40 };
+        formActivo.vida_util_total = tabla[formActivo.rubro] || 10;
+      };
+
+      const abrirModalAltaActivo = () => {
+        formActivo.codigo = 'AF-2026-00' + (listaActivosFijos.value.length + 1);
+        formActivo.descripcion = '';
+        formActivo.nro_serie = '';
+        formActivo.factura = '';
+        activos.mostrarModalAlta = true;
+      };
+
+      const guardarNuevoActivo = () => {
+        asignarVidaUtilPorRubro();
+        listaActivosFijos.value.unshift({
+          id: Date.now(),
+          codigo: formActivo.codigo,
+          descripcion: formActivo.descripcion.toUpperCase(),
+          nro_serie: formActivo.nro_serie.toUpperCase(),
+          factura: formActivo.factura,
+          rubro: formActivo.rubro,
+          fecha_compra: formActivo.fecha_compra.split('-').reverse().join('/'),
+          sucursal: formActivo.sucursal,
+          responsable: formActivo.responsable.toUpperCase(),
+          costo_inicial: formActivo.costo_inicial,
+          depreciacion_acumulada: 0,
+          valor_neto: formActivo.costo_inicial,
+          vida_util_total: formActivo.vida_util_total,
+          vida_util_restante: formActivo.vida_util_total,
+          estado: 'ACTIVO'
+        });
+        activos.mostrarModalAlta = false;
+        alert(`Bien ${formActivo.codigo} incorporado al patrimonio de la cooperativa.`);
+      };
+
+      const abrirModalTraslado = () => {
+        if (listaActivosFijos.value.length > 0) formTraslado.activo_id = listaActivosFijos.value[0].id;
+        formTraslado.nuevo_responsable = '';
+        activos.mostrarModalTraslado = true;
+      };
+
+      const ejecutarTrasladoActivo = () => {
+        const bien = listaActivosFijos.value.find(a => a.id === formTraslado.activo_id);
+        if (bien) {
+          bien.sucursal = formTraslado.nueva_sucursal;
+          bien.responsable = formTraslado.nuevo_responsable.toUpperCase();
+          alert(`Traslado asentado: ${bien.codigo} asignado a ${bien.sucursal} (${bien.responsable}).`);
+        }
+        activos.mostrarModalTraslado = false;
+      };
+
+      const ejecutarRevaluoYDepreciacionAnual = () => {
+        if (!confirm(`¿Confirma la ejecución del Revalúo y Depreciación del ejercicio ${depreciacion.periodo}? Se actualizarán los valores netos y se reducirá en 1 año la vida útil restante.`)) return;
+
+        const coef = depreciacion.coeficiente || 1;
+        listaActivosFijos.value.forEach(bien => {
+          if (bien.estado === 'ACTIVO' && bien.vida_util_restante > 0) {
+            const revaluado = Math.round(bien.valor_neto * coef);
+            const cuota = Math.round(revaluado / bien.vida_util_restante);
+            bien.depreciacion_acumulada += cuota;
+            bien.valor_neto = Math.max(0, revaluado - cuota);
+            bien.vida_util_restante = Math.max(0, bien.vida_util_restante - 1);
+          }
+        });
+
+        alert(`Cierre de Activo Fijo ${depreciacion.periodo} procesado con éxito. Los nuevos saldos ya impactaron en el Padrón de Bienes de Uso.`);
+        depreciacion.periodo += 1;
+      };
+
+      // --- ESTADO: REPORTES, PARAMETRÍA Y ADMIN USERS ---
+      const reportes = reactive({
+        subTab: 'regulatorios',
+        filtroModulo: 'TODOS',
+        busquedaLog: '',
+        mostrarModalPrevia: false // <- Nuevo estado para el modal
+      });
+
+      const reporteSeleccionado = ref(null); // <- Guarda el reporte actual
+      const datosPreviaReporte = reactive({ columnas: [], filas: [] }); // <- Guarda los datos simulados
+
+      const catalogoReportes = ref([
+        { id: 1, entidad: 'INCOOP', titulo: 'Alerta Temprana y Liquidez', descripcion: 'Indicadores financieros de solvencia, morosidad y calce de plazos según Marco Regulatorio.', frecuencia: 'Mensual' },
+        { id: 2, entidad: 'INCOOP', titulo: 'Clasificación de Cartera de Créditos', descripcion: 'Estratificación de socios deudores por categorías de riesgo (A hasta E) y previsiones.', frecuencia: 'Mensual' },
+        { id: 3, entidad: 'SEPRELAD', titulo: 'Reporte de Operaciones Sospechosas (ROS)', descripcion: 'Matriz de prevención de lavado de activos y cruce de depósitos superiores a USD 10.000.', frecuencia: 'A Demanda' },
+        { id: 4, entidad: 'CONTABLE', titulo: 'Balance General de Sumas y Saldos', descripcion: 'Consolidado contable por sucursal del Plan de Cuentas Cooperativo.', frecuencia: 'Diario / Mensual' },
+        { id: 5, entidad: 'SOCIAL', titulo: 'Padrón Electoral para Asamblea', descripcion: 'Nómina de socios habilitados con voz y voto (al día con Aportes y Solidaridad).', frecuencia: 'Anual' },
+        { id: 6, entidad: 'AUDITORÍA', titulo: 'Arqueos Consolidados y Faltantes', descripcion: 'Historial de cierres de turno de cajeros y pases a bóveda central.', frecuencia: 'Diario' }
+      ]);
+
+      const listaLogsAuditoria = ref([
+        { id: 1, fecha_hora: '15/10/2026 12:45:10', usuario: 'USR_994', sucursal: 'CASA CENTRAL', ip: '192.168.1.44', modulo: 'CREDITOS', accion: 'Aprobación de solicitud SOL-CR-2026-104 y generación de préstamo.', nivel: 'NORMAL' },
+        { id: 2, fecha_hora: '15/10/2026 11:20:05', usuario: 'CAJA_01', sucursal: 'CASA CENTRAL', ip: '192.168.1.12', modulo: 'CAJA', accion: 'Cierre y arqueo de caja remitido a Tesorería.', nivel: 'NORMAL' },
+        { id: 3, fecha_hora: '14/10/2026 17:05:50', usuario: 'ADMIN_ROOT', sucursal: 'CASA CENTRAL', ip: '10.0.0.5', modulo: 'SEGURIDAD', accion: 'Modificación de tasa moratoria en Parametría General.', nivel: 'CRITICO' }
+      ]);
+
+      const logsAuditoriaFiltrados = Vue.computed(() => {
+        return listaLogsAuditoria.value.filter(l => {
+          const pasaMod = reportes.filtroModulo === 'TODOS' || l.modulo === reportes.filtroModulo;
+          const q = reportes.busquedaLog.toLowerCase();
+          const pasaTxt = !q || l.usuario.toLowerCase().includes(q) || l.accion.toLowerCase().includes(q);
+          return pasaMod && pasaTxt;
+        });
+      });
+
+      // --- NUEVOS MÉTODOS PARA LA VISTA PREVIA DE REPORTES ---
+
+      // Diccionario de datos de prueba según el ID del reporte
+      const mockDatosReportes = {
+        1: { // Alerta Temprana INCOOP
+            columnas: ["PERIODO", "CUENTA_CONTABLE", "DESCRIPCION", "SALDO_ACTUAL", "VARIACION_MENSUAL", "INDICE_ALERTA"],
+            filas: [
+              ["2026-10", "1.1.01.00", "DISPONIBILIDAD EN BÓVEDA", "450.000.000", "+5.2%", "NORMAL"],
+              ["2026-10", "1.1.02.00", "BANCOS Y FINANCIERAS LOCALES", "1.250.000.000", "-2.1%", "NORMAL"],
+              ["2026-10", "1.2.01.00", "CARTERA DE CRÉDITOS VIGENTE", "8.540.000.000", "+12.4%", "MONITOREAR"],
+              ["2026-10", "2.1.01.00", "AHORROS A LA VISTA", "3.200.000.000", "+8.0%", "NORMAL"]
+            ]
+        },
+        2: { // Clasificación de Cartera
+            columnas: ["NRO_PRESTAMO", "SOCIO_ID", "DIAS_ATRASO", "CATEGORIA_RIESGO", "SALDO_CAPITAL", "PREVISION_EXIGIDA"],
+            filas: [
+              ["PR-2026-1001", "12544", "0", "A - RIESGO NORMAL", "12.000.000", "120.000 (1%)"],
+              ["PR-2025-0842", "9930", "45", "B - RIESGO POTENCIAL", "5.400.000", "270.000 (5%)"],
+              ["PR-2024-0115", "4021", "120", "D - DUDOSO RECAUDO", "2.100.000", "1.050.000 (50%)"],
+              ["PR-2026-1002", "14002", "0", "A - RIESGO NORMAL", "35.000.000", "350.000 (1%)"]
+            ]
+        },
+        3: { // SEPRELAD ROS
+            columnas: ["FECHA_TRX", "SOCIO_ID", "TIPO_OPERACION", "MONTO_PYG", "MONTO_USD_EQ", "ORIGEN_FONDOS", "PERFIL_TRANSACCIONAL"],
+            filas: [
+              ["15/10/2026", "8832", "CANCELACION_ANTICIPADA_CDA", "85.000.000", "11.038", "TRANSFERENCIA SIPAP", "EXCEDE_PERFIL (Alerta)"],
+              ["12/10/2026", "1105", "DEPOSITO_EFECTIVO_VENTANILLA", "76.000.000", "9.870", "EFECTIVO", "DENTRO_LIMITE"]
+            ]
+        },
+        4: { // Balance Sumas y Saldos
+            columnas: ["NRO_CUENTA", "DENOMINACION_CUENTA", "SALDO_ANTERIOR", "DEBITOS", "CREDITOS", "SALDO_ACTUAL"],
+            filas: [
+              ["1", "ACTIVO", "15.400.000.000", "2.100.000.000", "1.800.000.000", "15.700.000.000"],
+              ["2", "PASIVO", "4.200.000.000", "500.000.000", "800.000.000", "4.500.000.000"],
+              ["3", "PATRIMONIO NETO", "11.200.000.000", "0", "0", "11.200.000.000"]
+            ]
+        },
+        5: { // Padrón Electoral
+            columnas: ["NRO_SOCIO", "CI", "NOMBRES_APELLIDOS", "ESTADO_SOCIETARIO", "APORTES_INTEGRADOS", "HABILITADO_VOTAR"],
+            filas: [
+              ["12544", "1.254.333", "PEREZ PEREZ, JUAN ANIBAL", "ACTIVO", "3.500.000", "SI"],
+              ["14002", "2.890.111", "GOMEZ DE LOPEZ, MARIA ELENA", "ACTIVO", "5.200.000", "SI"],
+              ["9930", "3.441.222", "MARTINEZ, CARLOS", "MOROSO_APORTES", "1.100.000", "NO (Adeuda 3 meses)"]
+            ]
+        },
+        6: { // Arqueos Auditoría
+            columnas: ["FECHA_CIERRE", "CAJERO", "SUCURSAL", "TOTAL_SISTEMA", "TOTAL_DECLARADO", "DIFERENCIA", "ESTADO_ARQUEO"],
+            filas: [
+              ["15/10/2026 13:00", "USR_994", "CASA CENTRAL", "12.450.000", "12.450.000", "0", "APROBADO_TESORERIA"],
+              ["14/10/2026 17:30", "CAJA_01", "AGENCIA SAN LORENZO", "8.200.000", "8.150.000", "-50.000", "FALTANTE_DESCONTADO"]
+            ]
+        }
+      };
+
+      const abrirVistaPreviaReporte = (reporte) => {
+        reporteSeleccionado.value = reporte;
+        // Carga los datos mockeados si existen, si no, carga un default vacío
+        if (mockDatosReportes[reporte.id]) {
+            datosPreviaReporte.columnas = mockDatosReportes[reporte.id].columnas;
+            datosPreviaReporte.filas = mockDatosReportes[reporte.id].filas;
+        } else {
+            datosPreviaReporte.columnas = ["DATOS", "NO", "DISPONIBLES"];
+            datosPreviaReporte.filas = [["-", "-", "-"]];
+        }
+        reportes.mostrarModalPrevia = true;
+      };
+
+      const exportarReporteDefinitivo = () => {
+        if(!reporteSeleccionado.value) return;
+        alert(`Descargando matriz CSV [${reporteSeleccionado.value.entidad}] - "${reporteSeleccionado.value.titulo}".`);
+        reportes.mostrarModalPrevia = false;
+      };
+
+      // Parametría General
+      const parametros = reactive({
+        nombre_cooperativa: 'Cooperativa Multiactiva CopuRails Ltda.',
+        ruc: '80055443-2',
+        registro_incoop: 'RES-INCOOP-402/98',
+        aporte_mensual: 60000,
+        cuota_solidaridad: 30000,
+        multiplo_credito: 8,
+        tasa_mora: 4.5,
+        lineas: [
+          { id: 1, nombre: 'Crédito Ordinario Sola Firma', tipo: 'ACTIVA', plazo_max: 24, tasa: 16.5 },
+          { id: 2, nombre: 'Crédito Extraordinario Vivienda', tipo: 'ACTIVA', plazo_max: 60, tasa: 14.0 },
+          { id: 3, nombre: 'Ahorro a la Vista', tipo: 'PASIVA', plazo_max: 1, tasa: 2.5 },
+          { id: 4, nombre: 'CDA Plazo Fijo 360 Días', tipo: 'PASIVA', plazo_max: 12, tasa: 9.5 }
+        ]
+      });
+
+      // Admin Users
+      const seguridad = reactive({ mostrarModal: false });
+      const formUsuario = reactive({ username: '', nombre: '', email: '', sucursal: 'CASA CENTRAL', rol: 'CAJERO' });
+
+      const listaUsuariosSistema = ref([
+        { id: 1, username: 'USR_994', nombre: 'ING. JUN VALLEJOS', email: 'jvallejos@copurails.coop.py', sucursal: 'CASA CENTRAL', rol: 'ADMIN_SISTEMA', activo: true },
+        { id: 2, username: 'CAJA_01', nombre: 'LIC. MARTA GIMENEZ', email: 'mgimenez@copurails.coop.py', sucursal: 'CASA CENTRAL', rol: 'CAJERO', activo: true },
+        { id: 3, username: 'OFIC_SL01', nombre: 'CARLOS BENITEZ', email: 'cbenitez@copurails.coop.py', sucursal: 'AGENCIA SAN LORENZO', rol: 'OFICIAL_CREDITO', activo: true }
+      ]);
+
+      // Métodos
+      const exportarReporteSimulado = (rep) => {
+        alert(`Generando matriz oficial [${rep.entidad}] - "${rep.titulo}". El archivo ha sido compilado con éxito.`);
+      };
+
+      const guardarParametriaGeneral = () => {
+        listaLogsAuditoria.value.unshift({
+          id: Date.now(),
+          fecha_hora: new Date().toLocaleString('es-PY'),
+          usuario: tenant.user,
+          sucursal: tenant.sucursal,
+          ip: '192.168.1.10',
+          modulo: 'SEGURIDAD',
+          accion: 'Actualización de parámetros financieros y tasas institucionales.',
+          nivel: 'CRITICO'
+        });
+        alert("Parametría institucional actualizada y registrada en la pista de auditoría.");
+      };
+
+      const abrirModalNuevoUsuario = () => {
+        formUsuario.username = 'USR_' + Math.floor(100 + Math.random() * 899);
+        formUsuario.nombre = '';
+        formUsuario.email = '';
+        seguridad.mostrarModal = true;
+      };
+
+      const guardarNuevoUsuario = () => {
+        listaUsuariosSistema.value.push({
+          id: Date.now(),
+          username: formUsuario.username.toUpperCase(),
+          nombre: formUsuario.nombre.toUpperCase(),
+          email: formUsuario.email,
+          sucursal: formUsuario.sucursal,
+          rol: formUsuario.rol,
+          activo: true
+        });
+        seguridad.mostrarModal = false;
+        alert(`Operador ${formUsuario.username} creado con rol ${formUsuario.rol}.`);
+      };
+
+      const alternarEstadoUsuario = (usuario) => {
+        usuario.activo = !usuario.activo;
+      };
+
+      // --- ESTADO Y MÉTODOS DE CAJA AMPLIADOS (MULTIVALOR E HISTORIAL) --
+
+      const procesarCobroMultivalor = () => {
+        const total = totalBoleta.value;
+        if (caja.formaPago === 'EFECTIVO' && vueltoCobro.value < 0) {
+          alert("El efectivo recibido es insuficiente.");
+          return;
+        }
+
+        // Registrar en el historial global
+        caja.carrito.forEach(item => {
+          listaHistorialCobranzas.value.unshift({
+            id: Date.now() + Math.random(),
+            nro_recibo: 'REC-2026-' + Math.floor(1000 + Math.random() * 9000),
+            fecha_hora: new Date().toLocaleString('es-PY'),
+            descripcion: item.descripcion,
+            referencia: item.referencia,
+            forma_pago: caja.formaPago,
+            monto: item.monto,
+            cajero: tenant.user
+          });
+
+          // Acumular contablemente según el medio de pago
+          if (caja.formaPago === 'EFECTIVO') {
+            caja.totalCobradoTurno += item.monto;
+          } else if (caja.formaPago.includes('TARJETA') || caja.formaPago === 'QR_BANCARIO' || caja.formaPago === 'PIX_SIPAP') {
+            caja.totalPOS = (caja.totalPOS || 0) + item.monto;
+          } else if (caja.formaPago === 'CHEQUE') {
+            caja.totalCheques = (caja.totalCheques || 0) + item.monto;
+          }
+
+          if(item.tipo === 'EXTERNO') tesoreria.deudaTerceros += item.monto;
+        });
+
+        alert(`Pago procesado mediante [${caja.formaPago}]. Recibo impreso correctamente.`);
+        caja.carrito = [];
+        caja.efectivoRecibido = 0;
+        caja.refVoucher = '';
+        caja.nroCheque = '';
+      };
+
+      return {
+        tenant,vistaActual,loading,caja, cambiarVista,formatCurrency, solicitarApertura,menusAbiertos,toggleMenu,
+        mesaEntrada, nuevoIngreso, solicitudesFiltradas, 
+        abrirNuevoIngreso, guardarNuevoIngreso, abrirChecklist, cerrarChecklist, confirmarRecepcion,
+        aprobaciones, formComite, formConsejo, expedientesParaEvaluar,
+        abrirModalAprobacion, cerrarModalAprobacion, guardarDictamenComite, formalizarResolucion,
+        padron, padronFiltrado, seleccionarSocio,
+        grupoFamiliar, formularioPariente, parientesDelSocio,
+        buscarSocioParaFamilia, abrirModalPariente, cerrarModalPariente, guardarPariente, eliminarPariente,
+        movimientos, formEvento, historialEventosSocio, buscarSocioParaMovimiento, abrirModalMovimiento, guardarEvento,
+        bajas, deudaValidacion, formBaja, buscarSocioParaBaja, ejecutarBaja,
+        credito, formCredito, proformaGenerada, cuotaCalculada, totalInteresCalculado, tablaAmortizacion,
+        buscarSocioParaCredito, limpiarCredito, calcularProforma, enviarAMesaDeEntrada, maestro, buscarPrestamo, isVencida,
+        garantias, formGarantia, garantiasRegistradas, 
+        buscarPrestamoGarantia, abrirModalNuevaGarantia, cerrarModalGarantia, guardarGarantia, iconoGarantia, colorGarantia, 
+        ahorros, formCuenta, cuentasDelSocio,buscarSocioParaAhorro, seleccionarCuenta, abrirModalApertura, guardarCuenta, colorTipoAhorro,
+        caja, tesoreria, caja_saldoEfectivo, totalBoleta, vueltoCobro, diferenciaArqueo, abrirCaja, buscarDeudasSocio, consultarFacturaTercero, agregarAlCarrito, quitarDelCarrito, procesarCobro, iniciarArqueo, confirmarCierreCaja, aprobarArqueo,
+        beneficios, formConvenio, formSubsidio, baseConvenios, baseSubsidios,abrirModalConvenio, guardarConvenio, abrirModalSubsidio, guardarSubsidio,
+        aportesEsp, formAporte, baseAportesEspeciales, guardarPlanAporte,
+        listaSolicitudes,admision,formAdmision, listadoAdmisionFiltrado, verificarDuplicadoPostulante, buscarProponente,limpiarFormularioAdmision, registrarSolicitudIngreso,
+        aprobCredito, formDictamenCredito, listaSolicitudesCredito, solicitudesCreditoFiltradas, seleccionarSolicitudCredito, elevarAConsejoCredito, rechazarSolicitudCredito, aprobarYDesembolsarCredito,
+        activos,formActivo, formTraslado, depreciacion, listaActivosFijos, activosFiltrados, resumenActivos, cuadroDepreciacionProyectado,totalesCuadroDepreciacion, asignarVidaUtilPorRubro, abrirModalAltaActivo, guardarNuevoActivo, abrirModalTraslado, ejecutarTrasladoActivo, ejecutarRevaluoYDepreciacionAnual,
+        reportes, catalogoReportes, logsAuditoriaFiltrados, parametros, seguridad, formUsuario, listaUsuariosSistema, exportarReporteSimulado,
+        guardarParametriaGeneral, abrirModalNuevoUsuario, guardarNuevoUsuario,alternarEstadoUsuario, historialCobranzasFiltrado, procesarCobroMultivalor, totalHistorialFiltrado, reporteSeleccionado,datosPreviaReporte,abrirVistaPreviaReporte, exportarReporteDefinitivo
+      }
+    }
+  }).mount('#app');
+</script>

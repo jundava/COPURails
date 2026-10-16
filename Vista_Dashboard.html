@@ -1,0 +1,140 @@
+<!-- ARCHIVO: Vista_Dashboard.html -->
+<div class="h-full flex flex-col space-y-6">
+  
+  <!-- Banner de Bienvenida -->
+  <div class="bg-gradient-to-r from-blue-700 to-slate-800 p-8 rounded-xl border border-slate-200 shadow-md flex items-center justify-between text-white">
+    <div>
+      <h3 class="text-2xl font-bold mb-1">Bienvenido al Core Cooperativo CopuRails</h3>
+      <p class="text-blue-100 font-medium">Sucursal: {{ tenant.sucursal }} | Operador: {{ tenant.user }}</p>
+    </div>
+    <div class="hidden md:flex items-center space-x-3 bg-white/10 px-4 py-2 rounded-lg backdrop-blur-sm">
+       <i class="ph ph-calendar-blank text-2xl"></i>
+       <div class="text-right">
+          <p class="text-xs uppercase font-bold text-blue-200 tracking-wider">Fecha Operativa</p>
+          <p class="text-sm font-semibold">15 de Octubre, 2026</p>
+       </div>
+    </div>
+  </div>
+
+  <!-- Tarjetas de KPIs (Indicadores Clave) -->
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    
+    <!-- KPI 1: Socios Activos -->
+    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-4 hover:shadow-md transition-shadow">
+      <div class="p-3 bg-blue-50 text-blue-600 rounded-lg">
+        <i class="ph ph-users-three text-3xl"></i>
+      </div>
+      <div>
+        <p class="text-sm font-medium text-slate-500 uppercase tracking-wide">Socios Activos</p>
+        <p class="text-2xl font-bold text-slate-800">4,289</p>
+      </div>
+    </div>
+
+    <!-- KPI 2: Solicitudes Pendientes (Mesa de Entrada) -->
+    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-4 hover:shadow-md transition-shadow">
+      <div class="p-3 bg-amber-50 text-amber-600 rounded-lg">
+        <i class="ph ph-folder-open text-3xl"></i>
+      </div>
+      <div>
+        <p class="text-sm font-medium text-slate-500 uppercase tracking-wide">Mesa de Entrada</p>
+        <p class="text-2xl font-bold text-slate-800">12 <span class="text-sm text-slate-400 font-normal">pendientes</span></p>
+      </div>
+    </div>
+
+    <!-- KPI 3: Desembolsos del Día -->
+    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-4 hover:shadow-md transition-shadow">
+      <div class="p-3 bg-emerald-50 text-emerald-600 rounded-lg">
+        <i class="ph ph-money text-3xl"></i>
+      </div>
+      <div>
+        <p class="text-sm font-medium text-slate-500 uppercase tracking-wide">Desembolsos Hoy</p>
+        <p class="text-2xl font-bold text-slate-800"><span class="text-base text-slate-500 font-medium">Gs.</span> 145M</p>
+      </div>
+    </div>
+
+    <!-- KPI 4: Estado de Caja -->
+    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex items-center space-x-4 hover:shadow-md transition-shadow">
+       <!-- Color dinámico basado en el estado de la caja de Vue -->
+      <div :class="caja.estado === 'ABIERTA' ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'" class="p-3 rounded-lg transition-colors">
+        <i class="ph ph-cash-register text-3xl"></i>
+      </div>
+      <div>
+        <p class="text-sm font-medium text-slate-500 uppercase tracking-wide">Mi Caja</p>
+        <p class="text-lg font-bold" :class="caja.estado === 'ABIERTA' ? 'text-emerald-700' : 'text-red-700'">
+           {{ caja.estado === 'ABIERTA' ? 'OPERATIVA' : 'CERRADA' }}
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sección Inferior: Accesos Rápidos y Gráficos (Estructura Base) -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1">
+     
+     <!-- Columna Izquierda: Accesos Directos -->
+     <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col">
+        <h4 class="text-sm font-bold text-slate-700 uppercase border-b pb-3 mb-4 flex items-center gap-2">
+           <i class="ph ph-lightning text-blue-500 text-lg"></i> Accesos Rápidos
+        </h4>
+        <div class="space-y-3 flex-1">
+           <button @click="cambiarVista('caja')" class="w-full text-left px-4 py-3 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors flex items-center justify-between group">
+              <span class="font-medium text-slate-700">Ir a Cobranzas</span>
+              <i class="ph ph-arrow-right text-slate-400 group-hover:text-blue-500 transition-colors"></i>
+           </button>
+           <button class="w-full text-left px-4 py-3 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors flex items-center justify-between group">
+              <span class="font-medium text-slate-700">Nueva Solicitud de Crédito</span>
+              <i class="ph ph-arrow-right text-slate-400 group-hover:text-blue-500 transition-colors"></i>
+           </button>
+           <button class="w-full text-left px-4 py-3 bg-slate-50 hover:bg-slate-100 rounded-lg border border-slate-200 transition-colors flex items-center justify-between group">
+              <span class="font-medium text-slate-700">Padrón de Socios</span>
+              <i class="ph ph-arrow-right text-slate-400 group-hover:text-blue-500 transition-colors"></i>
+           </button>
+        </div>
+     </div>
+
+     <!-- Columna Derecha: Simulación de Actividad / Log (Espacio más amplio) -->
+     <div class="lg:col-span-2 bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col">
+        <h4 class="text-sm font-bold text-slate-700 uppercase border-b pb-3 mb-4 flex items-center gap-2">
+           <i class="ph ph-activity text-blue-500 text-lg"></i> Actividad Reciente del Sistema
+        </h4>
+        
+        <!-- Lista de Actividades Recientes -->
+        <div class="flex-1 overflow-y-auto space-y-4 pr-2">
+           
+           <div class="flex items-start gap-4">
+              <div class="bg-emerald-100 text-emerald-600 p-2 rounded-full shrink-0">
+                 <i class="ph ph-check-circle text-lg"></i>
+              </div>
+              <div>
+                 <p class="text-sm font-semibold text-slate-800">Crédito Aprobado (Consejo)</p>
+                 <p class="text-xs text-slate-500">Expediente Nro. 2026/100905 - CAPURRO, JOSE CARLOS</p>
+                 <p class="text-xs text-slate-400 font-mono mt-1">Hace 15 min</p>
+              </div>
+           </div>
+
+           <div class="flex items-start gap-4">
+              <div class="bg-blue-100 text-blue-600 p-2 rounded-full shrink-0">
+                 <i class="ph ph-user-plus text-lg"></i>
+              </div>
+              <div>
+                 <p class="text-sm font-semibold text-slate-800">Nueva Solicitud de Ingreso</p>
+                 <p class="text-xs text-slate-500">Recibido en Mesa de Entrada (CASA CENTRAL)</p>
+                 <p class="text-xs text-slate-400 font-mono mt-1">Hace 1 hora</p>
+              </div>
+           </div>
+           
+           <div class="flex items-start gap-4">
+              <div class="bg-slate-100 text-slate-600 p-2 rounded-full shrink-0">
+                 <i class="ph ph-clock-counter-clockwise text-lg"></i>
+              </div>
+              <div>
+                 <p class="text-sm font-semibold text-slate-800">Apertura de Caja (Turno Mañana)</p>
+                 <p class="text-xs text-slate-500">Operador: {{ tenant.user }} | Monto: Gs. 1.500.000</p>
+                 <p class="text-xs text-slate-400 font-mono mt-1">08:00 AM</p>
+              </div>
+           </div>
+
+        </div>
+     </div>
+  </div>
+  
+</div>

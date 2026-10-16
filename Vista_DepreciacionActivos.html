@@ -1,0 +1,93 @@
+<!-- ARCHIVO: Vista_DepreciacionActivos.html -->
+<div class="h-full flex flex-col space-y-4">
+  
+  <!-- CABECERA Y PARÁMETROS DEL EJERCICIO FISCAL -->
+  <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm shrink-0 flex flex-col lg:flex-row lg:justify-between lg:items-center gap-4">
+    <div>
+      <h3 class="text-lg font-semibold text-slate-800 flex items-center gap-2">
+        <i class="ph ph-chart-line-down text-blue-600 text-xl"></i> Cuadro de Revalúo y Depreciación Fiscal (INCOOP / DNIT)
+      </h3>
+      <p class="text-sm text-slate-500 mt-1">Cálculo automático de actualización de valores por coeficiente IPC y cuota de depreciación anual.</p>
+    </div>
+
+    <!-- Controles de Coeficiente y Ejecución -->
+    <div class="flex flex-wrap items-center gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
+      <div>
+        <label class="block text-[10px] font-bold uppercase text-slate-500">Ejercicio Fiscal</label>
+        <input v-model="depreciacion.periodo" type="number" class="w-24 border border-slate-300 rounded px-2 py-1 text-sm font-mono font-bold bg-white">
+      </div>
+      <div>
+        <label class="block text-[10px] font-bold uppercase text-slate-500">Coeficiente Revalúo</label>
+        <input v-model.number="depreciacion.coeficiente" type="number" step="0.0001" class="w-28 border border-slate-300 rounded px-2 py-1 text-sm font-mono font-bold text-blue-700 bg-white">
+      </div>
+      <button @click="ejecutarRevaluoYDepreciacionAnual" class="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-4 py-2.5 rounded-lg text-xs shadow-sm transition-colors flex items-center gap-2">
+        <i class="ph ph-calculator text-base"></i> Procesar Cierre y Asentar Depreciación
+      </button>
+    </div>
+  </div>
+
+  <!-- TABLA TÉCNICA DEL CUADRO DE REVALÚO -->
+  <div class="bg-white rounded-xl border border-slate-200 shadow-sm flex-1 flex flex-col overflow-hidden">
+    <div class="border-b border-slate-200 bg-slate-800 text-white px-5 py-3 flex justify-between items-center shrink-0">
+      <h4 class="font-semibold text-xs uppercase tracking-wider flex items-center gap-2">
+        <i class="ph ph-table"></i> Planilla Técnica de Cálculos Proyectados (Coeficiente: {{ depreciacion.coeficiente }})
+      </h4>
+      <span class="text-xs text-slate-300 font-mono">Método: Cuota Lineal por Años de Vida Útil</span>
+    </div>
+
+    <div class="flex-1 overflow-auto">
+      <table class="w-full text-left border-collapse">
+        <thead class="bg-slate-100 sticky top-0 border-b border-slate-200 z-10">
+          <tr>
+            <th class="py-3 px-4 text-[11px] font-bold text-slate-600 uppercase">Código / Bien</th>
+            <th class="py-3 px-4 text-[11px] font-bold text-slate-600 uppercase text-center">Vida Útil Rest.</th>
+            <th class="py-3 px-4 text-[11px] font-bold text-slate-600 uppercase text-right">Valor Fiscal Ant.</th>
+            <th class="py-3 px-4 text-[11px] font-bold text-blue-700 uppercase text-right">Valor Revaluado</th>
+            <th class="py-3 px-4 text-[11px] font-bold text-amber-700 uppercase text-right">Cuota Deprec. Ejercicio</th>
+            <th class="py-3 px-4 text-[11px] font-bold text-slate-600 uppercase text-right">Deprec. Acumulada</th>
+            <th class="py-3 px-4 text-[11px] font-bold text-emerald-700 uppercase text-right">Nuevo Valor Neto</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 text-xs font-mono">
+          <tr v-for="item in cuadroDepreciacionProyectado" :key="item.id" class="hover:bg-slate-50">
+            <td class="py-3.5 px-4 font-sans">
+              <p class="font-bold text-slate-800">{{ item.codigo }} - {{ item.descripcion }}</p>
+              <p class="text-[11px] text-slate-400">{{ item.rubro }}</p>
+            </td>
+            <td class="py-3.5 px-4 text-center font-bold text-slate-700">
+              {{ item.vida_util_restante }} / {{ item.vida_util_total }} años
+            </td>
+            <td class="py-3.5 px-4 text-right text-slate-600">
+              {{ formatCurrency(item.valor_neto) }}
+            </td>
+            <td class="py-3.5 px-4 text-right font-bold text-blue-700 bg-blue-50/40">
+              {{ formatCurrency(item.valorRevaluado) }}
+            </td>
+            <td class="py-3.5 px-4 text-right font-bold text-amber-700 bg-amber-50/40">
+              - {{ formatCurrency(item.cuotaDepreciacionAnual) }}
+            </td>
+            <td class="py-3.5 px-4 text-right text-slate-500">
+              {{ formatCurrency(item.nuevaDeprecAcumulada) }}
+            </td>
+            <td class="py-3.5 px-4 text-right font-bold text-emerald-700 bg-emerald-50/40 text-sm">
+              {{ formatCurrency(item.nuevoValorNeto) }}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Pie de Totales del Asiento Contable -->
+    <div class="bg-slate-900 text-white p-4 shrink-0 flex flex-col md:flex-row justify-between items-center gap-4 text-xs font-mono">
+      <div class="flex items-center gap-2 text-slate-300 font-sans">
+        <i class="ph ph-book-open-text text-lg text-emerald-400"></i>
+        <span>Asiento Automático: <strong>Debe:</strong> Depreciación del Ejercicio | <strong>Haber:</strong> Depreciación Acumulada Bienes de Uso</span>
+      </div>
+      <div class="flex gap-6">
+        <span>Total Cuota Depreciación Ejercicio: <strong class="text-amber-400 text-sm">Gs. {{ formatCurrency(totalesCuadroDepreciacion.totalCuotaAnual) }}</strong></span>
+        <span>Patrimonio Neto Final: <strong class="text-emerald-400 text-sm">Gs. {{ formatCurrency(totalesCuadroDepreciacion.totalNuevoNeto) }}</strong></span>
+      </div>
+    </div>
+  </div>
+
+</div>

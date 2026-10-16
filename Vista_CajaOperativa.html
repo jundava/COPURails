@@ -1,0 +1,299 @@
+<!-- ARCHIVO: Vista_CajaOperativa.html -->
+<div class="h-full flex flex-col space-y-4 relative">
+  
+  <!-- CABECERA: Estado de Caja y Pestañas Principales -->
+  <div class="bg-slate-800 text-white p-4 rounded-xl shadow-md shrink-0 flex flex-col md:flex-row justify-between items-center gap-4 z-10">
+    <div class="flex items-center gap-4">
+       <div class="bg-slate-700 p-2 rounded-lg">
+          <i class="ph ph-cash-register text-3xl" :class="caja.estado === 'ABIERTA' ? 'text-emerald-400' : 'text-slate-400'"></i>
+       </div>
+       <div>
+          <h3 class="font-bold text-lg leading-tight">Terminal de Caja - {{ tenant.sucursal }}</h3>
+          <p class="text-xs text-slate-300">Operador: {{ tenant.user }} | Turno: Mañana</p>
+       </div>
+    </div>
+    
+    <!-- Pestañas de Navegación de Caja -->
+    <div class="bg-slate-700 p-1 rounded-xl flex">
+       <button @click="caja.vistaTab = 'operacion'" :class="caja.vistaTab === 'operacion' ? 'bg-blue-600 text-white shadow' : 'text-slate-300 hover:text-white'" class="px-4 py-1.5 rounded-lg text-xs font-bold transition-all">Terminal POS</button>
+       <button @click="caja.vistaTab = 'historial'" :class="caja.vistaTab === 'historial' ? 'bg-blue-600 text-white shadow' : 'text-slate-300 hover:text-white'" class="px-4 py-1.5 rounded-lg text-xs font-bold transition-all">Historial de Cobranzas</button>
+    </div>
+
+    <div class="flex items-center gap-4">
+       <div v-if="caja.estado === 'ABIERTA'" class="text-right">
+          <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider mb-0.5">Efectivo en Caja</p>
+          <p class="text-xl font-mono font-bold text-emerald-400">Gs. {{ formatCurrency(caja_saldoEfectivo) }}</p>
+       </div>
+       <button v-if="caja.estado === 'ABIERTA'" @click="iniciarArqueo" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow transition-colors flex items-center gap-2">
+          <i class="ph ph-lock-key"></i> Arqueo y Cierre
+       </button>
+    </div>
+  </div>
+
+  <!-- PANTALLA: APERTURA DE CAJA -->
+  <div v-if="caja.estado === 'CERRADA'" class="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center p-6">
+     <div class="w-full max-w-md bg-slate-50 border border-slate-200 rounded-2xl p-8 shadow-inner text-center">
+        <i class="ph ph-lock-key text-6xl text-slate-300 mb-4 block"></i>
+        <h2 class="text-2xl font-bold text-slate-800 mb-2">Caja Cerrada</h2>
+        <p class="text-sm text-slate-500 mb-6">Debe declarar el fondo de sencillo asignado por Tesorería para habilitar la terminal.</p>
+        
+        <form @submit.prevent="abrirCaja" class="space-y-4 text-left">
+           <div>
+              <label class="block text-sm font-bold text-slate-700 mb-1">Monto Inicial (Efectivo)</label>
+              <div class="relative">
+                 <span class="absolute left-3 top-1/2 -translate-y-1/2 font-bold text-slate-400">Gs.</span>
+                 <input v-model.number="caja.montoApertura" type="number" required class="w-full border-2 border-slate-300 rounded-xl pl-10 pr-4 py-3 outline-none focus:border-emerald-500 text-right font-mono font-bold text-xl text-slate-800">
+              </div>
+           </div>
+           <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl shadow flex justify-center items-center gap-2">
+              <i class="ph ph-key text-xl"></i> Habilitar Terminal de Caja
+           </button>
+        </form>
+     </div>
+  </div>
+
+  <!-- ================================================================= -->
+  <!-- VISTA TAB 1: OPERATIVA DE COBRANZAS (POS)                         -->
+  <!-- ================================================================= -->
+  <div v-if="caja.estado === 'ABIERTA' && caja.vistaTab === 'operacion'" class="flex-1 flex flex-col md:flex-row gap-4 overflow-hidden">
+     
+     <!-- COLUMNA IZQUIERDA: Búsqueda y Selección -->
+     <div class="w-full md:w-7/12 flex flex-col space-y-4 overflow-hidden">
+        
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm p-1.5 flex shrink-0">
+           <button @click="caja.tabCobro = 'INTERNO'" :class="caja.tabCobro === 'INTERNO' ? 'bg-blue-600 text-white shadow' : 'text-slate-600 hover:bg-slate-100'" class="flex-1 py-2 rounded-lg text-sm font-bold transition-all">Productos Cooperativa</button>
+           <button @click="caja.tabCobro = 'TERCEROS'" :class="caja.tabCobro === 'TERCEROS' ? 'bg-indigo-600 text-white shadow' : 'text-slate-600 hover:bg-slate-100'" class="flex-1 py-2 rounded-lg text-sm font-bold transition-all">Servicios Externos</button>
+        </div>
+
+        <!-- Búsqueda Interna -->
+        <div v-if="caja.tabCobro === 'INTERNO'" class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 shrink-0">
+           <label class="block text-xs uppercase font-bold text-slate-500 tracking-wider mb-2">Identificar Socio</label>
+           <div class="flex gap-2">
+              <input type="text" v-model="caja.busquedaSocio" @keyup.enter="buscarDeudasSocio" placeholder="Nro de Cédula o Socio..." class="flex-1 border border-slate-300 rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-blue-500 text-sm font-medium">
+              <button @click="buscarDeudasSocio" class="bg-slate-800 text-white px-4 py-2 rounded-lg font-medium hover:bg-slate-700 text-sm"><i class="ph ph-magnifying-glass"></i> Buscar</button>
+           </div>
+        </div>
+
+        <!-- Búsqueda Externa -->
+        <div v-if="caja.tabCobro === 'TERCEROS'" class="bg-white rounded-xl border border-slate-200 shadow-sm p-4 shrink-0">
+           <label class="block text-xs uppercase font-bold text-slate-500 tracking-wider mb-2">Seleccione el Servicio</label>
+           <select v-model="caja.servicioSeleccionado" class="w-full border border-slate-300 rounded-lg px-3 py-2 mb-3 outline-none text-sm font-bold text-slate-700 bg-white">
+              <option value="" disabled>Seleccionar facturador...</option>
+              <option value="ANDE">ANDE (Energía Eléctrica)</option>
+              <option value="ESSAP">ESSAP (Agua Potable)</option>
+              <option value="CLARO">Claro Paraguay</option>
+              <option value="JAHA">Recarga Billetaje JAHA</option>
+           </select>
+           <div class="flex gap-2">
+              <input type="text" placeholder="Nro de NIS / Línea / Tarjeta..." class="flex-1 border border-slate-300 rounded-lg px-3 py-2 outline-none text-sm font-mono">
+              <button @click="consultarFacturaTercero" class="bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 text-sm">Consultar</button>
+           </div>
+        </div>
+
+        <!-- Grilla de Conceptos -->
+        <div class="bg-white rounded-xl border border-slate-200 shadow-sm flex-1 flex flex-col overflow-hidden">
+           <div class="border-b border-slate-200 bg-slate-50 px-4 py-2.5 flex justify-between items-center shrink-0">
+              <span class="text-xs font-bold text-slate-600 uppercase tracking-wider">Conceptos Pendientes</span>
+           </div>
+           <div class="flex-1 overflow-auto p-3 space-y-2">
+              <div v-for="item in caja.deudasConsultadas" :key="item.id" class="border border-slate-200 rounded-lg p-3 hover:bg-slate-50 flex items-center justify-between">
+                 <div>
+                    <span class="text-[10px] font-bold px-2 py-0.5 rounded uppercase" :class="item.tipo === 'EXTERNO' ? 'bg-indigo-100 text-indigo-700' : 'bg-blue-100 text-blue-700'">{{ item.categoria }}</span>
+                    <p class="text-sm font-bold text-slate-800 mt-1">{{ item.descripcion }}</p>
+                    <p class="text-xs text-slate-500">{{ item.referencia }}</p>
+                 </div>
+                 <div class="text-right">
+                    <p class="text-base font-bold font-mono text-slate-800 mb-1">Gs. {{ formatCurrency(item.monto) }}</p>
+                    <button @click="agregarAlCarrito(item)" class="text-xs bg-white border border-slate-300 px-3 py-1 rounded shadow-sm hover:bg-slate-100 font-medium text-slate-700 flex items-center gap-1">
+                       <i class="ph ph-plus"></i> Añadir
+                    </button>
+                 </div>
+              </div>
+              <div v-if="caja.deudasConsultadas.length === 0" class="h-full flex flex-col items-center justify-center text-slate-400 p-6 text-center">
+                 <i class="ph ph-receipt text-4xl mb-2"></i>
+                 <p class="text-sm">Realice una búsqueda para ver los comprobantes pendientes de pago.</p>
+              </div>
+           </div>
+        </div>
+     </div>
+
+     <!-- COLUMNA DERECHA: TICKET Y FORMA DE PAGO MULTIVALOR -->
+     <div class="w-full md:w-5/12 bg-white rounded-xl border border-slate-200 shadow-md flex flex-col overflow-hidden">
+        <div class="bg-slate-100 border-b border-slate-200 p-3 text-center shrink-0">
+           <h4 class="font-bold text-slate-800 text-sm flex items-center justify-center gap-2">
+              <i class="ph ph-receipt text-base"></i> Boleta de Pago Actual
+           </h4>
+        </div>
+        
+        <div class="flex-1 overflow-auto p-3 bg-slate-50/50 space-y-2 max-h-[160px]">
+           <div v-if="caja.carrito.length === 0" class="py-8 text-center text-slate-400 text-xs italic">No hay items en la boleta.</div>
+           <div v-for="(item, index) in caja.carrito" :key="index" class="bg-white p-2.5 border border-slate-200 rounded-lg flex justify-between items-center text-xs">
+              <div>
+                 <p class="font-bold text-slate-800">{{ item.descripcion }}</p>
+                 <span class="text-[10px] text-slate-500">{{ item.referencia }}</span>
+              </div>
+              <div class="flex items-center gap-2 font-mono font-bold">
+                 <span>Gs. {{ formatCurrency(item.monto) }}</span>
+                 <button @click="quitarDelCarrito(index)" class="text-red-400 hover:text-red-600"><i class="ph ph-x text-sm"></i></button>
+              </div>
+           </div>
+        </div>
+
+        <!-- SELECCIÓN DE FORMA DE PAGO MULTIVALOR -->
+        <div class="p-4 border-t border-slate-200 bg-white space-y-3 shrink-0">
+           <div class="flex justify-between items-center">
+              <span class="text-xs font-bold text-slate-500 uppercase">Forma de Pago / Valor:</span>
+              <select v-model="caja.formaPago" class="border border-slate-300 rounded-lg px-2.5 py-1 text-xs font-bold bg-slate-50 outline-none">
+                 <option value="EFECTIVO">EFECTIVO</option>
+                 <option value="TARJETA_CREDITO">TARJETA DE CRÉDITO (POS)</option>
+                 <option value="TARJETA_DEBITO">TARJETA DE DÉBITO (POS)</option>
+                 <option value="QR_BANCARIO">PAGO QR (Bancos/Financieras)</option>
+                 <option value="PIX_SIPAP">TRANSFERENCIA / PIX / SIPAP</option>
+                 <option value="CHEQUE">CHEQUE PROPIO / TERCERO</option>
+              </select>
+           </div>
+
+           <!-- Inputs dinámicos según el medio de pago -->
+           <div v-if="caja.formaPago === 'EFECTIVO'" class="space-y-2 bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs">
+              <div class="flex justify-between">
+                 <span class="text-slate-600">Total a Cobrar:</span>
+                 <span class="font-mono font-bold text-slate-800">Gs. {{ formatCurrency(totalBoleta) }}</span>
+              </div>
+              <div class="flex items-center justify-between gap-2">
+                 <span class="text-slate-600">Efectivo Recibido:</span>
+                 <input v-model.number="caja.efectivoRecibido" type="number" class="w-32 border border-slate-300 rounded px-2 py-1 text-right font-mono font-bold bg-white outline-none">
+              </div>
+              <div class="flex justify-between font-bold" :class="vueltoCobro >= 0 ? 'text-emerald-700' : 'text-red-600'">
+                 <span>Vuelto:</span>
+                 <span class="font-mono">Gs. {{ formatCurrency(vueltoCobro) }}</span>
+              </div>
+           </div>
+
+           <!-- Datos Adicionales para POS / QR / Cheque -->
+           <div v-else class="bg-blue-50/50 p-3 rounded-lg border border-blue-100 text-xs space-y-2">
+              <div v-if="caja.formaPago.includes('TARJETA') || caja.formaPago === 'QR_BANCARIO'">
+                 <label class="block text-[10px] font-bold text-slate-600 mb-0.5">Nro. de Voucher / Transacción POS:</label>
+                 <input v-model="caja.refVoucher" type="text" placeholder="Ej. Auth-884920" class="w-full border border-slate-300 rounded px-2 py-1 text-xs font-mono bg-white outline-none">
+              </div>
+              <div v-if="caja.formaPago === 'CHEQUE'" class="grid grid-cols-2 gap-2">
+                 <input v-model="caja.nroCheque" type="text" placeholder="Nro. Cheque" class="border border-slate-300 rounded px-2 py-1 text-xs font-mono bg-white outline-none">
+                 <input v-model="caja.bancoCheque" type="text" placeholder="Banco Emisor" class="border border-slate-300 rounded px-2 py-1 text-xs font-sans bg-white outline-none">
+              </div>
+              <p class="text-[10px] text-blue-700 font-medium"><i class="ph ph-info"></i> El monto se debitará por el canal digital/valores seleccionado.</p>
+           </div>
+        </div>
+
+        <!-- TOTAL Y BOTÓN DE COBRO -->
+        <div class="bg-slate-900 text-white p-4 shrink-0 rounded-b-xl">
+           <div class="flex justify-between items-center mb-3">
+              <span class="text-xs text-slate-400 font-bold uppercase">Total Boleta</span>
+              <span class="text-2xl font-mono font-bold text-emerald-400">Gs. {{ formatCurrency(totalBoleta) }}</span>
+           </div>
+           <button @click="procesarCobroMultivalor" :disabled="caja.carrito.length === 0" class="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 text-white font-bold py-3 rounded-lg shadow flex justify-center items-center gap-2 transition-colors text-sm">
+              <i class="ph ph-printer text-lg"></i> Procesar Pago y Emitir Recibo
+           </button>
+        </div>
+     </div>
+  </div>
+
+  <!-- ================================================================= -->
+  <!-- VISTA TAB 2: HISTORIAL DE COBRANZAS POR PERÍODO                   -->
+  <!-- ================================================================= -->
+  <div v-if="caja.estado === 'ABIERTA' && caja.vistaTab === 'historial'" class="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+     <div class="p-4 border-b border-slate-200 bg-slate-50 flex flex-col md:flex-row justify-between items-center gap-4 shrink-0">
+        <div class="flex items-center gap-3">
+           <span class="text-xs font-bold uppercase text-slate-500">Filtrar por Fecha:</span>
+           <input v-model="caja.filtroFecha" type="date" class="border border-slate-300 rounded-lg px-3 py-1.5 text-sm bg-white outline-none font-mono">
+        </div>
+        <div class="relative w-full md:w-80">
+           <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+           <input v-model="caja.filtroHistorialTexto" type="text" placeholder="Buscar por socio, recibo o medio de pago..." class="w-full pl-9 pr-4 py-1.5 border border-slate-300 rounded-lg text-sm outline-none bg-white">
+        </div>
+     </div>
+
+     <div class="flex-1 overflow-auto">
+        <table class="w-full text-left border-collapse">
+          <thead class="bg-white sticky top-0 border-b border-slate-200 z-10">
+            <tr>
+              <th class="py-3 px-5 text-xs font-semibold text-slate-500 uppercase">Recibo / Hora</th>
+              <th class="py-3 px-5 text-xs font-semibold text-slate-500 uppercase">Concepto / Referencia</th>
+              <th class="py-3 px-5 text-xs font-semibold text-slate-500 uppercase">Forma de Pago</th>
+              <th class="py-3 px-5 text-xs font-semibold text-slate-500 uppercase text-right">Monto (Gs.)</th>
+              <th class="py-3 px-5 text-xs font-semibold text-slate-500 uppercase text-center">Cajero</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 text-sm">
+            <tr v-for="rec in historialCobranzasFiltrado" :key="rec.id" class="hover:bg-slate-50">
+               <td class="py-3.5 px-5 font-mono">
+                  <p class="font-bold text-slate-800">{{ rec.nro_recibo }}</p>
+                  <p class="text-[11px] text-slate-400">{{ rec.fecha_hora }}</p>
+               </td>
+               <td class="py-3.5 px-5">
+                  <p class="font-bold text-slate-800">{{ rec.descripcion }}</p>
+                  <p class="text-xs text-slate-500">{{ rec.referencia }}</p>
+               </td>
+               <td class="py-3.5 px-5">
+                  <span class="bg-slate-100 text-slate-700 font-bold px-2.5 py-1 rounded text-xs border border-slate-200">
+                     {{ rec.forma_pago }}
+                  </span>
+               </td>
+               <td class="py-3.5 px-5 text-right font-mono font-bold text-emerald-700">
+                  Gs. {{ formatCurrency(rec.monto) }}
+               </td>
+               <td class="py-3.5 px-5 text-center text-xs text-slate-600 font-medium">
+                  {{ rec.cajero }}
+               </td>
+            </tr>
+          <tr v-if="historialCobranzasFiltrado.length === 0">
+               <td colspan="5" class="py-12 text-center text-slate-400 italic">No se registran cobranzas para el filtro seleccionado.</td>
+            </tr>
+          </tbody>
+          
+          <!-- NUEVO: PIE DE TABLA CON EL TOTAL -->
+          <tfoot v-if="historialCobranzasFiltrado.length > 0" class="bg-slate-800 text-white border-t-2 border-slate-300">
+            <tr>
+              <td colspan="3" class="py-3 px-5 text-right text-xs font-bold uppercase tracking-wider">
+                Total Recaudación:
+              </td>
+              <td class="py-3 px-5 text-right font-mono font-bold text-emerald-400 text-base">
+                Gs. {{ formatCurrency(totalHistorialFiltrado) }}
+              </td>
+              <td></td>
+            </tr>
+          </tfoot>
+          
+        </table>
+          </tbody>
+        </table>
+     </div>
+  </div>
+
+  <!-- MODAL: ARQUEO DE CAJA -->
+  <div v-if="caja.mostrarArqueo" class="fixed inset-0 bg-slate-900/80 z-50 flex items-center justify-center backdrop-blur-sm p-4">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-xl mx-4 flex flex-col border border-slate-200 overflow-hidden">
+      <div class="bg-red-600 text-white px-6 py-4 flex justify-between items-center shrink-0">
+        <h3 class="font-bold text-lg flex items-center gap-2"><i class="ph ph-lock-key"></i> Proceso de Arqueo y Cierre de Caja</h3>
+        <button @click="caja.mostrarArqueo = false"><i class="ph ph-x text-xl"></i></button>
+      </div>
+      <div class="p-6 space-y-4">
+         <div class="grid grid-cols-2 gap-4">
+            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 text-sm space-y-2">
+               <h4 class="text-xs uppercase font-bold text-slate-500 border-b pb-1">Desglose en Caja</h4>
+               <div class="flex justify-between"><span class="text-slate-600">Efectivo Físico:</span><span class="font-mono font-bold text-emerald-700">Gs. {{ formatCurrency(caja_saldoEfectivo) }}</span></div>
+               <div class="flex justify-between"><span class="text-slate-600">Vouchers POS/QR:</span><span class="font-mono font-bold text-blue-700">Gs. {{ formatCurrency(caja.totalPOS || 0) }}</span></div>
+               <div class="flex justify-between"><span class="text-slate-600">Cheques Cartera:</span><span class="font-mono font-bold text-purple-700">Gs. {{ formatCurrency(caja.totalCheques || 0) }}</span></div>
+            </div>
+            <div class="bg-blue-50 p-4 rounded-xl border border-blue-200 flex flex-col justify-center">
+               <label class="block text-xs font-bold text-blue-800 mb-1">Efectivo Físico Contado:</label>
+               <input v-model.number="caja.montoArqueoDeclarado" type="number" class="w-full border border-blue-300 rounded-lg px-3 py-2 text-right font-mono font-bold text-lg bg-white outline-none">
+            </div>
+         </div>
+      </div>
+      <div class="flex justify-end gap-3 p-4 bg-slate-50 border-t">
+        <button @click="caja.mostrarArqueo = false" class="px-4 py-2 text-slate-600 text-sm font-medium">Volver</button>
+        <button @click="confirmarCierreCaja" class="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-bold text-sm shadow">Confirmar Cierre de Caja</button>
+      </div>
+    </div>
+  </div>
+
+</div>

@@ -1,0 +1,290 @@
+<!-- ARCHIVO: Vista_Ahorros.html -->
+<div class="h-full flex flex-col space-y-4">
+  
+  <!-- Buscador de Socio Titular (Paso 1 Obligatorio) -->
+  <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm shrink-0 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+    <div>
+      <h3 class="text-lg font-semibold text-slate-800 flex items-center gap-2">
+        <i class="ph ph-piggy-bank text-emerald-600"></i> Gestión de Cuentas de Ahorro
+      </h3>
+      <p class="text-sm text-slate-500 mt-1">Apertura de cuentas, depósitos a plazo fijo, programados y extractos.</p>
+    </div>
+    
+    <div class="relative w-full md:w-80">
+      <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+      <input type="text" v-model="ahorros.busquedaSocio" @keyup.enter="buscarSocioParaAhorro" placeholder="Buscar Socio (Nro Socio o CI)..." class="w-full pl-10 pr-20 py-2 border border-slate-300 rounded-lg focus:ring-1 focus:ring-emerald-500 outline-none text-sm bg-slate-50">
+      <button @click="buscarSocioParaAhorro" class="absolute right-1 top-1/2 -translate-y-1/2 bg-slate-800 text-white px-3 py-1 rounded-md text-xs font-medium hover:bg-slate-700 transition-colors">Buscar</button>
+    </div>
+  </div>
+
+  <!-- ESTADO VACÍO: Antes de buscar al socio -->
+  <div v-if="!ahorros.socioActivo" class="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center p-6">
+      <div class="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4 border border-slate-100">
+         <i class="ph ph-vault text-4xl text-slate-300"></i>
+      </div>
+      <h4 class="text-lg font-bold text-slate-700">Ningún Socio Seleccionado</h4>
+      <p class="text-sm text-slate-500 mt-1 max-w-md">Debe buscar y seleccionar a un socio titular para visualizar o abrir nuevas cuentas de ahorro.</p>
+  </div>
+
+  <!-- PANEL DE AHORROS DEL SOCIO (Visible solo tras la búsqueda) -->
+  <div v-else class="flex-1 flex flex-col space-y-4 overflow-hidden">
+    
+    <!-- Cabecera del Socio Activo -->
+    <div class="bg-emerald-50 p-4 rounded-xl border border-emerald-100 shrink-0 flex justify-between items-center">
+       <div>
+          <p class="text-[10px] uppercase font-bold text-emerald-600 tracking-wider mb-1">Titular de Cuentas</p>
+          <h4 class="text-lg font-bold text-slate-800">{{ ahorros.socioActivo.nombre_completo }}</h4>
+          <p class="text-sm text-slate-600">Nro. Socio: <span class="font-bold">{{ ahorros.socioActivo.nro_socio }}</span> | CI: {{ ahorros.socioActivo.ci }}</p>
+       </div>
+       <button @click="ahorros.socioActivo = null" class="text-slate-500 hover:text-slate-700 text-sm font-medium border border-slate-300 bg-white px-3 py-1.5 rounded-lg transition-colors">Cambiar Titular</button>
+    </div>
+
+    <!-- Layout Dividido: Lista de Cuentas y Detalles de Cuenta Seleccionada -->
+    <div class="flex flex-1 gap-6 overflow-hidden">
+       
+       <!-- COLUMNA IZQUIERDA: Mis Cuentas -->
+       <div class="w-1/3 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col shrink-0">
+          <div class="border-b border-slate-200 bg-slate-50 px-5 py-3 flex justify-between items-center shrink-0">
+             <h4 class="font-semibold text-slate-700 text-sm uppercase tracking-wider">Mis Cuentas</h4>
+             <button @click="abrirModalApertura()" class="text-emerald-600 hover:bg-emerald-50 border border-emerald-200 bg-white px-3 py-1.5 rounded-lg transition-colors text-xs font-bold flex items-center gap-1 shadow-sm">
+                <i class="ph ph-plus"></i> Nueva Apertura
+             </button>
+          </div>
+          
+          <div class="flex-1 overflow-y-auto p-4 space-y-3">
+             <!-- Tarjeta de Cuenta Iterada -->
+             <div v-for="cta in cuentasDelSocio" :key="cta.nro_cuenta" 
+                  @click="seleccionarCuenta(cta)"
+                  :class="ahorros.cuentaSeleccionada?.nro_cuenta === cta.nro_cuenta ? 'border-emerald-500 bg-emerald-50 shadow-sm ring-1 ring-emerald-500' : 'border-slate-200 hover:border-emerald-300 hover:bg-slate-50 cursor-pointer'"
+                  class="border rounded-lg p-4 transition-all">
+                
+                <div class="flex justify-between items-start mb-3">
+                   <span class="text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider border" :class="colorTipoAhorro(cta.tipo)">
+                      {{ cta.tipo }}
+                   </span>
+                   <span class="text-xs text-slate-500 font-mono font-medium">{{ cta.nro_cuenta }}</span>
+                </div>
+                
+                <!-- Info extra para Ahorro Programado -->
+                <div v-if="cta.tipo === 'PROGRAMADO'" class="bg-white/50 p-2 rounded border border-blue-100 mb-3">
+                   <p class="text-[10px] text-slate-500 flex justify-between"><span>Meta Final:</span> <span class="font-mono font-medium text-slate-700">Gs. {{ formatCurrency(cta.meta_ahorro) }}</span></p>
+                   <p class="text-[10px] text-slate-500 flex justify-between mt-1"><span>Cuota Mensual:</span> <span class="font-mono font-medium text-slate-700">Gs. {{ formatCurrency(cta.cuota_mensual) }}</span></p>
+                </div>
+                
+                <p class="text-xs text-slate-500 uppercase tracking-wider mb-1">Saldo Disponible</p>
+                <p class="font-mono font-bold text-lg text-slate-800">Gs. {{ formatCurrency(cta.saldo_contable - cta.saldo_bloqueado) }}</p>
+             </div>
+             
+             <!-- Sin cuentas -->
+             <div v-if="cuentasDelSocio.length === 0" class="text-center p-6 bg-slate-50 rounded-lg border border-slate-100">
+                <i class="ph ph-piggy-bank text-3xl text-slate-300 mb-2"></i>
+                <p class="text-sm text-slate-500">El socio no posee ninguna cuenta de ahorro activa.</p>
+             </div>
+          </div>
+       </div>
+
+       <!-- COLUMNA DERECHA: Detalle de Cuenta y Extracto -->
+       <div class="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+          <div v-if="ahorros.cuentaSeleccionada" class="h-full flex flex-col">
+             
+             <!-- Header de Cuenta Específica -->
+             <div class="p-6 border-b border-slate-200 shrink-0 bg-slate-50/50">
+                <div class="flex justify-between items-start mb-6">
+                   <div>
+                      <h3 class="text-2xl font-bold text-slate-800 font-mono mb-1">{{ ahorros.cuentaSeleccionada.nro_cuenta }}</h3>
+                      <p class="text-sm font-medium text-slate-500">Apertura: {{ ahorros.cuentaSeleccionada.fecha_apertura }}</p>
+                   </div>
+                   
+                   <!-- Metadata Condicional: Plazo Fijo -->
+                   <div v-if="ahorros.cuentaSeleccionada.tipo === 'PLAZO FIJO'" class="text-right bg-white p-3 rounded-lg border border-purple-200 shadow-sm min-w-[200px]">
+                      <p class="text-[10px] uppercase font-bold text-purple-600 mb-2">Condiciones del CDA</p>
+                      <div class="flex justify-between text-sm mb-1"><span class="text-slate-500">Tasa:</span><span class="font-bold text-slate-700">{{ ahorros.cuentaSeleccionada.tasa_interes }}% Anual</span></div>
+                      <div class="flex justify-between text-sm"><span class="text-slate-500">Vence:</span><span class="font-bold text-red-600">{{ ahorros.cuentaSeleccionada.fecha_vencimiento }}</span></div>
+                   </div>
+                </div>
+
+                <!-- Resumen de Saldos -->
+                <div class="grid grid-cols-3 gap-4">
+                   <div class="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+                      <p class="text-[10px] uppercase font-bold text-slate-500 mb-1 flex items-center gap-1"><i class="ph ph-coins"></i> Saldo Contable</p>
+                      <p class="font-mono font-bold text-lg text-slate-800">Gs. {{ formatCurrency(ahorros.cuentaSeleccionada.saldo_contable) }}</p>
+                   </div>
+                   <div class="bg-white p-4 rounded-lg border border-red-200 shadow-sm relative overflow-hidden">
+                      <div class="absolute top-0 right-0 w-8 h-8 bg-red-50 rounded-bl-full flex items-start justify-end p-1.5"><i class="ph ph-lock text-red-400 text-sm"></i></div>
+                      <p class="text-[10px] uppercase font-bold text-red-600 mb-1">Bloqueado (Garantía)</p>
+                      <p class="font-mono font-bold text-lg text-red-700">Gs. {{ formatCurrency(ahorros.cuentaSeleccionada.saldo_bloqueado) }}</p>
+                   </div>
+                   <div class="bg-emerald-50 p-4 rounded-lg border border-emerald-200 shadow-sm">
+                      <p class="text-[10px] uppercase font-bold text-emerald-700 mb-1 flex items-center gap-1"><i class="ph ph-hand-coins"></i> Saldo para Retiro</p>
+                      <p class="font-mono font-bold text-2xl text-emerald-800">Gs. {{ formatCurrency(ahorros.cuentaSeleccionada.saldo_contable - ahorros.cuentaSeleccionada.saldo_bloqueado) }}</p>
+                   </div>
+                </div>
+             </div>
+
+             <!-- Extracto Histórico -->
+             <div class="flex-1 flex flex-col overflow-hidden bg-white">
+                <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center shrink-0">
+                   <h4 class="font-semibold text-slate-700 text-sm flex items-center gap-2">
+                      <i class="ph ph-list-dashes text-lg text-blue-500"></i> Extracto de Movimientos
+                   </h4>
+                   <button class="text-slate-600 hover:text-blue-600 text-sm font-medium border border-slate-300 px-3 py-1.5 rounded-lg hover:bg-slate-50 transition-colors flex items-center gap-2">
+                      <i class="ph ph-printer"></i> Imprimir Extracto
+                   </button>
+                </div>
+                
+                <div class="flex-1 overflow-auto p-0">
+                   <table class="w-full text-left border-collapse">
+                      <thead class="bg-slate-50 sticky top-0 border-b border-slate-200 shadow-sm z-10">
+                         <tr>
+                            <th class="py-3 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Fecha</th>
+                            <th class="py-3 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Concepto</th>
+                            <th class="py-3 px-6 text-xs font-semibold text-emerald-600 uppercase tracking-wider text-right">Crédito (+)</th>
+                            <th class="py-3 px-6 text-xs font-semibold text-red-600 uppercase tracking-wider text-right">Débito (-)</th>
+                         </tr>
+                      </thead>
+                      <tbody class="divide-y divide-slate-100 text-sm font-mono">
+                         <!-- Simulacion de Extracto -->
+                         <tr class="hover:bg-slate-50 transition-colors">
+                            <td class="py-4 px-6 text-slate-500">10/10/2026</td>
+                            <td class="py-4 px-6 text-slate-700 font-sans">Débito Automático (Solidaridad)</td>
+                            <td class="py-4 px-6 text-right"></td>
+                            <td class="py-4 px-6 text-right font-bold text-red-600">30.000</td>
+                         </tr>
+                         <tr class="hover:bg-slate-50 transition-colors">
+                            <td class="py-4 px-6 text-slate-500">01/10/2026</td>
+                            <td class="py-4 px-6 text-slate-700 font-sans">Depósito Efectivo Caja Central</td>
+                            <td class="py-4 px-6 text-right font-bold text-emerald-600">2.000.000</td>
+                            <td class="py-4 px-6 text-right"></td>
+                         </tr>
+                         <tr class="hover:bg-slate-50 transition-colors">
+                            <td class="py-4 px-6 text-slate-500">15/09/2026</td>
+                            <td class="py-4 px-6 text-slate-700 font-sans">Capitalización de Intereses Semestral</td>
+                            <td class="py-4 px-6 text-right font-bold text-emerald-600">45.000</td>
+                            <td class="py-4 px-6 text-right"></td>
+                         </tr>
+                      </tbody>
+                   </table>
+                </div>
+             </div>
+          </div>
+          
+          <!-- Vista Vacía (Derecha) -->
+          <div v-else class="flex-1 flex flex-col items-center justify-center p-6 text-center bg-slate-50/50">
+             <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center border border-slate-200 shadow-sm mb-4">
+                 <i class="ph ph-cursor-click text-3xl text-slate-400"></i>
+             </div>
+             <h4 class="text-base font-bold text-slate-700">Seleccione una cuenta</h4>
+             <p class="text-sm text-slate-500 mt-1 max-w-sm">Haga clic en una de las tarjetas del panel izquierdo para visualizar su extracto y condiciones.</p>
+          </div>
+       </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Apertura de Cuenta -->
+  <div v-if="ahorros.mostrarModal" class="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center backdrop-blur-sm p-4">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 flex flex-col border border-slate-200 overflow-hidden">
+      
+      <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 shrink-0">
+        <div>
+           <h3 class="font-semibold text-slate-800 flex items-center gap-2"><i class="ph ph-folder-plus text-emerald-600 text-xl"></i> Nuevo Producto de Captación</h3>
+           <p class="text-xs text-slate-500 mt-1 uppercase font-bold tracking-wider">Socio: {{ ahorros.socioActivo?.nombre_completo }}</p>
+        </div>
+        <button @click="ahorros.mostrarModal = false" class="bg-white border border-slate-200 p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-50 transition-colors shadow-sm"><i class="ph ph-x text-lg"></i></button>
+      </div>
+      
+      <form @submit.prevent="guardarCuenta" class="p-6 overflow-y-auto max-h-[70vh]">
+        <div class="space-y-6">
+          
+          <!-- Selector de Producto -->
+          <div>
+            <label class="block text-sm font-bold text-slate-700 mb-2">Seleccione el Tipo de Cuenta <span class="text-red-500">*</span></label>
+            <select v-model="formCuenta.tipo" required class="w-full border border-slate-300 rounded-lg px-4 py-3 outline-none focus:ring-2 focus:ring-emerald-500 text-sm font-bold bg-white shadow-sm transition-all cursor-pointer">
+              <option value="A LA VISTA">1. Ahorro a la Vista (Ordinario)</option>
+              <option value="INFANTO JUVENIL">2. Ahorro Infanto-Juvenil (Tutorados)</option>
+              <option value="PROGRAMADO">3. Ahorro Programado (Meta Fija Mensual)</option>
+              <option value="PLAZO FIJO">4. Certificado de Depósito de Ahorro (CDA)</option>
+            </select>
+          </div>
+          
+          <!-- Bloque Dinámico: INFANTO JUVENIL -->
+          <div v-if="formCuenta.tipo === 'INFANTO JUVENIL'" class="bg-pink-50 p-5 rounded-xl border border-pink-200 shadow-inner">
+             <label class="block text-sm font-bold text-pink-800 mb-2 flex items-center gap-2"><i class="ph ph-baby text-lg"></i> Seleccione Beneficiario Menor de Edad</label>
+             <select class="w-full border border-pink-300 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-pink-500 text-sm bg-white font-medium">
+                <option value="" disabled selected>Seleccione hijo/a registrado en Grupo Familiar...</option>
+                <option>PEREZ, MARCOS (Hijo)</option>
+             </select>
+             <p class="text-xs text-pink-600 mt-2 font-medium"><i class="ph ph-info"></i> El socio titular actuará como representante legal administrador de la cuenta.</p>
+          </div>
+
+          <!-- Bloque Dinámico: AHORRO PROGRAMADO -->
+          <div v-if="formCuenta.tipo === 'PROGRAMADO'" class="bg-blue-50 p-5 rounded-xl border border-blue-200 shadow-inner grid grid-cols-1 md:grid-cols-2 gap-5">
+             <div class="md:col-span-2 border-b border-blue-200 pb-2 mb-1">
+                <h5 class="text-sm font-bold text-blue-800 flex items-center gap-2"><i class="ph ph-target text-lg"></i> Configuración de la Meta</h5>
+             </div>
+             <div>
+                <label class="block text-xs font-bold text-blue-700 mb-1">Monto Meta Final (Gs.) <span class="text-red-500">*</span></label>
+                <input v-model.number="formCuenta.meta" type="number" required class="w-full border border-blue-300 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 text-sm text-right font-mono bg-white">
+             </div>
+             <div>
+                <label class="block text-xs font-bold text-blue-700 mb-1">Plazo de la Meta (Meses) <span class="text-red-500">*</span></label>
+                <input v-model.number="formCuenta.plazo" type="number" required min="6" max="60" class="w-full border border-blue-300 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-blue-500 text-sm text-center bg-white">
+             </div>
+             <div class="md:col-span-2 bg-white rounded-lg p-3 border border-blue-100 flex items-center justify-between shadow-sm mt-2">
+                <span class="text-sm font-bold text-blue-800">Cálculo de Débito Mensual Fijo:</span>
+                <span class="font-bold text-xl font-mono text-blue-600">Gs. {{ formatCurrency(Math.round(formCuenta.meta / formCuenta.plazo)) }}</span>
+             </div>
+          </div>
+
+          <!-- Bloque Dinámico: PLAZO FIJO (CDA) -->
+          <div v-if="formCuenta.tipo === 'PLAZO FIJO'" class="grid grid-cols-1 md:grid-cols-2 gap-5 bg-purple-50 p-5 rounded-xl border border-purple-200 shadow-inner">
+             <div class="md:col-span-2 border-b border-purple-200 pb-2 mb-1">
+                <h5 class="text-sm font-bold text-purple-800 flex items-center gap-2"><i class="ph ph-certificate text-lg"></i> Condiciones del Certificado (CDA)</h5>
+             </div>
+             <div>
+                <label class="block text-xs font-bold text-purple-700 mb-1">Plazo de Inmovilización (Días) <span class="text-red-500">*</span></label>
+                <select v-model.number="formCuenta.plazo" required class="w-full border border-purple-300 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-purple-500 text-sm bg-white font-medium">
+                   <option value="90">90 Días</option>
+                   <option value="180">180 Días</option>
+                   <option value="360">360 Días</option>
+                   <option value="720">720 Días</option>
+                </select>
+             </div>
+             <div>
+                <label class="block text-xs font-bold text-purple-700 mb-1">Tasa de Interés (% Anual) <span class="text-red-500">*</span></label>
+                <input v-model.number="formCuenta.tasa" type="number" step="0.1" required class="w-full border border-purple-300 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-purple-500 text-sm text-center bg-white font-mono font-bold text-purple-900">
+             </div>
+             <div class="md:col-span-2 mt-2">
+                <label class="block text-xs font-bold text-purple-700 mb-1">Liquidación de Intereses Generados <span class="text-red-500">*</span></label>
+                <select class="w-full border border-purple-300 rounded-lg px-4 py-2 outline-none focus:ring-2 focus:ring-purple-500 text-sm bg-white font-medium">
+                   <option>Acreditación Mensual a Cuenta A la Vista</option>
+                   <option>Capitalización al Vencimiento del CDA</option>
+                </select>
+             </div>
+          </div>
+
+          <!-- Bloque Obligatorio: Depósito Inicial -->
+          <div class="pt-6 border-t border-slate-200">
+             <label class="block text-sm font-bold text-slate-800 mb-2 flex justify-between items-center">
+                <span>Depósito Inicial (Capital Efectivo) <span class="text-red-500">*</span></span>
+                <span v-if="formCuenta.tipo === 'PROGRAMADO'" class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded font-mono">Mínimo Exigido: Gs. {{ formatCurrency(Math.round(formCuenta.meta / formCuenta.plazo)) }}</span>
+             </label>
+             <div class="relative">
+                <span class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-lg">Gs.</span>
+                <input v-model.number="formCuenta.deposito" type="number" required min="10000" class="w-full border-2 border-slate-300 rounded-xl pl-12 pr-4 py-4 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/20 text-2xl text-right font-mono font-bold text-slate-800 bg-white transition-all shadow-inner placeholder-slate-300" placeholder="0">
+             </div>
+             <p class="text-xs text-slate-500 mt-2 font-medium flex items-center gap-1"><i class="ph ph-info"></i> Esta acción generará una boleta de depósito pendiente que debe ser efectivizada en el Módulo de Caja.</p>
+          </div>
+        </div>
+        
+        <!-- Footer Modal -->
+        <div class="flex justify-end gap-3 mt-8 border-t border-slate-200 pt-5 bg-white">
+          <button type="button" @click="ahorros.mostrarModal = false" class="px-6 py-2.5 text-slate-600 hover:bg-slate-100 border border-transparent hover:border-slate-300 rounded-lg font-medium text-sm transition-all">Cancelar</button>
+          <button type="submit" class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-sm flex items-center gap-2 transition-all shadow-md hover:shadow-lg transform hover:-translate-y-0.5">
+            <i class="ph ph-check-circle text-lg"></i> Formalizar Apertura de Cuenta
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>

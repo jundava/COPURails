@@ -1,0 +1,109 @@
+<!-- ARCHIVO: Index.html -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>CopuRails - ERP</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <!-- Importar Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .hidden-section { display: none !important; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    </style>
+</head>
+<body class="text-slate-800 antialiased h-screen flex overflow-hidden">
+    
+    <div id="app" class="w-full h-full flex flex-col md:flex-row">
+       <!-- Inyectamos los componentes y las vistas -->
+       <?!= include('Componente_Sidebar'); ?>
+       
+       <!-- ÁREA PRINCIPAL -->
+       <main class="flex-1 flex flex-col h-screen overflow-hidden relative">
+          <!-- Inyectamos el Topbar -->
+          <?!= include('Componente_Topbar'); ?>
+          
+          <div class="flex-1 overflow-y-auto p-4 lg:p-8 relative bg-slate-100">
+             
+             <!-- Rutas/Vistas Controladas por Vue -->
+             <div v-show="vistaActual === 'dashboard'">
+                <?!= include('Vista_Dashboard'); ?>
+             </div>          
+              <!-- En Index.html, dentro de la sección de Rutas/Vistas Controladas por Vue -->
+              <div v-show="vistaActual === 'solicitud_ingreso'">
+                <?!= include('Vista_SolicitudIngreso'); ?>
+              </div>
+
+              <div v-show="vistaActual === 'mesa_entrada'">
+                <?!= include('Vista_MesaEntrada'); ?>
+              </div>
+              <div v-show="vistaActual === 'aprobacion_socios'">
+                <?!= include('Vista_Aprobaciones'); ?>
+              </div>
+              <div v-show="vistaActual === 'padron_socios'">
+                <?!= include('Vista_PadronSocios'); ?>
+              </div>
+              <div v-show="vistaActual === 'grupo_familiar'">
+                <?!= include('Vista_GrupoFamiliar'); ?>
+              </div>
+              <div v-show="vistaActual === 'movimientos_socios'">
+                <?!= include('Vista_Movimientos'); ?>
+              </div>
+              <div v-show="vistaActual === 'bajas_renuncias'">
+                <?!= include('Vista_Bajas'); ?>
+              </div>
+              <div v-show="vistaActual === 'solicitud_credito'">
+                <?!= include('Vista_SolicitudCredito'); ?>
+              </div>
+              <div v-show="vistaActual === 'maestro_prestamos'">
+                <?!= include('Vista_MaestroPrestamos'); ?>
+              </div>
+              <div v-show="vistaActual === 'garantias_seguros'">
+                <?!= include('Vista_Garantias'); ?>
+              </div>
+              <div v-show="vistaActual === 'ahorros'">
+                <?!= include('Vista_Ahorros'); ?>
+              </div>
+              <div v-show="vistaActual === 'caja'">
+                <?!= include('Vista_CajaOperativa'); ?>
+              </div>
+              <div v-show="vistaActual === 'tesoreria'">
+                <?!= include('Vista_Tesoreria'); ?>
+              </div>
+              <div v-show="vistaActual === 'solicitud_beneficios'">
+                <?!= include('Vista_BeneficiosConvenios'); ?>
+              </div>
+              <div v-show="vistaActual === 'aportes_especiales'">
+                <?!= include('Vista_AportesEspecials'); ?>
+              </div>
+              <div v-show="vistaActual === 'aprobacion_creditos'">
+                <?!= include('Vista_AprobacionCreditos'); ?>
+              </div>
+              <div v-show="vistaActual === 'inventario_activos'">
+                <?!= include('Vista_InventarioActivos'); ?>
+              </div>
+              <div v-show="vistaActual === 'depreciacion_activos'">
+                <?!= include('Vista_DepreciacionActivos'); ?>
+              </div>
+              <div v-show="vistaActual === 'reportes'">
+                <?!= include('Vista_Reportes'); ?>
+              </div>
+              <div v-show="vistaActual === 'parametria'">
+                <?!= include('Vista_Parametria'); ?>
+              </div>
+              <div v-show="vistaActual === 'admin_users'">
+                <?!= include('Vista_AdminUsers'); ?>
+              </div>
+
+          </div>
+       </main>
+    </div>
+
+    <!-- Script de Inicialización de Vue -->
+    <?!= include('App_Main_Script'); ?>
+</body>
+</html>

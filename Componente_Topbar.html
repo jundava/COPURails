@@ -1,0 +1,24 @@
+<!-- ARCHIVO: Componente_Topbar.html -->
+<header class="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-8 z-10 shrink-0" v-cloak>
+    <div class="flex items-center">
+        <!-- Botón menú móvil (pendiente de lógica toggle en Vue) -->
+        <button class="md:hidden text-slate-500 hover:text-slate-700 mr-4">
+            <i class="ph ph-list text-2xl"></i>
+        </button>
+        <!-- Título dinámico según la vista actual -->
+        <h2 class="text-xl font-semibold text-slate-800 capitalize">
+            {{ vistaActual === 'dashboard' ? 'Panel de Control' : vistaActual }}
+        </h2>
+    </div>
+    <div class="flex items-center space-x-4">
+        <!-- Info del Usuario y Sucursal (Multi-Tenant Data) -->
+        <div class="hidden md:block text-right mr-2">
+            <p class="text-sm font-medium text-slate-700">ID Usuario: {{ tenant.user }}</p>
+            <p class="text-xs text-slate-400">Sucursal: {{ tenant.sucursal }}</p>
+        </div>
+        <!-- Avatar generico -->
+        <div class="w-10 h-10 rounded-full border border-slate-200 bg-blue-600 flex items-center justify-center text-white font-bold text-sm">
+            {{ tenant.user.substring(0,2).toUpperCase() }}
+        </div>
+    </div>
+</header>

@@ -1,0 +1,117 @@
+<!-- ARCHIVO: Vista_Movimientos.html -->
+<div class="h-full flex flex-col space-y-4">
+  
+  <!-- Buscador de Socio Titular (Reutilizado) -->
+  <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm shrink-0 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+    <div>
+      <h3 class="text-lg font-semibold text-slate-800 flex items-center gap-2">
+        <i class="ph ph-briefcase text-blue-600"></i> Gestiones y Movimientos
+      </h3>
+      <p class="text-sm text-slate-500 mt-1">Bitácora de Cargos Directivos y auditorías del socio.</p>
+    </div>
+    <div class="relative w-full md:w-80">
+      <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+      <input type="text" v-model="movimientos.busquedaSocio" @keyup.enter="buscarSocioParaMovimiento" placeholder="Buscar Titular (Nro Socio o CI)..." class="w-full pl-10 pr-20 py-2 border border-slate-300 rounded-lg focus:ring-1 focus:ring-blue-500 outline-none text-sm bg-slate-50">
+      <button @click="buscarSocioParaMovimiento" class="absolute right-1 top-1/2 -translate-y-1/2 bg-slate-800 text-white px-3 py-1 rounded-md text-xs font-medium hover:bg-slate-700 transition-colors">Buscar</button>
+    </div>
+  </div>
+
+  <div v-if="!movimientos.socioActivo" class="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center text-center p-6">
+      <div class="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4 border border-slate-100">
+         <i class="ph ph-clock-counter-clockwise text-4xl text-slate-300"></i>
+      </div>
+      <h4 class="text-lg font-bold text-slate-700">Ningún Socio Seleccionado</h4>
+      <p class="text-sm text-slate-500 mt-1 max-w-md">Busque un socio para acceder a su historial institucional.</p>
+  </div>
+
+  <!-- Área de Historial -->
+  <div v-else class="flex-1 flex flex-col space-y-4 overflow-hidden">
+    
+    <!-- Tarjeta del Socio Titular -->
+    <div class="bg-blue-50 p-4 rounded-xl border border-blue-100 shrink-0 flex justify-between items-center">
+       <div>
+          <h4 class="text-lg font-bold text-slate-800">{{ movimientos.socioActivo.nombre_completo }}</h4>
+          <p class="text-sm text-slate-600">Nro. Socio: <span class="font-bold">{{ movimientos.socioActivo.nro_socio }}</span></p>
+       </div>
+       <button @click="movimientos.socioActivo = null" class="text-slate-500 hover:text-slate-700 text-sm font-medium border border-slate-300 bg-white px-3 py-1.5 rounded-lg transition-colors">Cambiar Titular</button>
+    </div>
+
+    <!-- Timeline de Movimientos -->
+    <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex-1 flex flex-col">
+       <div class="flex justify-between items-center mb-6 pb-2 border-b border-slate-200 shrink-0">
+          <h4 class="font-semibold text-slate-700 text-sm uppercase tracking-wider">Historial de Eventos</h4>
+          <button @click="abrirModalMovimiento()" class="text-sm bg-emerald-600 text-white font-medium px-4 py-2 rounded-lg hover:bg-emerald-700 flex items-center gap-2 transition-colors shadow-sm">
+             <i class="ph ph-plus-circle text-lg"></i> Registrar Evento
+          </button>
+       </div>
+       
+       <!-- Interfaz de Línea de Tiempo (Timeline) -->
+       <div class="flex-1 overflow-y-auto pl-4">
+          <div class="border-l-2 border-slate-200 ml-3 pl-6 space-y-8 mt-2 pb-6">
+              
+              <div v-for="evento in historialEventosSocio" :key="evento.id" class="relative">
+                  <!-- Indicador visual del Timeline -->
+                  <div class="absolute -left-[1.95rem] top-1 w-5 h-5 rounded-full border-4 border-white shadow-sm" :class="evento.tipo === 'CARGO_DIRECTIVO' ? 'bg-blue-500' : 'bg-amber-500'"></div>
+                  
+                  <span class="inline-block bg-slate-100 text-slate-600 text-xs font-bold px-2 py-1 rounded mb-2">{{ evento.fecha_registro }}</span>
+                  <span v-if="evento.tipo === 'CARGO_DIRECTIVO'" class="ml-2 inline-block bg-blue-100 text-blue-700 text-[10px] font-bold px-2 py-1 rounded uppercase">Mandato Institucional</span>
+                  
+                  <h5 class="font-bold text-slate-800 text-base mt-1">{{ evento.titulo }}</h5>
+                  <p v-if="evento.descripcion_corta" class="text-sm text-slate-500 font-medium mb-2">{{ evento.descripcion_corta }}</p>
+                  
+                  <div v-if="evento.detalle" class="text-sm text-slate-600 bg-slate-50 p-3 rounded-lg border border-slate-100 shadow-inner">
+                      {{ evento.detalle }}
+                  </div>
+              </div>
+
+              <div v-if="historialEventosSocio.length === 0" class="text-slate-500 italic mt-4 -ml-6">
+                 No se registran cargos directivos ni auditorías para este socio.
+              </div>
+
+          </div>
+       </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Nuevo Evento / Cargo -->
+  <div v-if="movimientos.mostrarModal" class="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center backdrop-blur-sm p-4">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 flex flex-col border border-slate-200">
+      <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-xl">
+        <h3 class="font-semibold text-slate-800">Registrar Nuevo Evento</h3>
+        <button @click="movimientos.mostrarModal = false"><i class="ph ph-x text-lg text-slate-400 hover:text-slate-600"></i></button>
+      </div>
+      <form @submit.prevent="guardarEvento" class="p-6">
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Tipo de Evento</label>
+            <select v-model="formEvento.tipo" required class="w-full border border-slate-300 rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-blue-500 text-sm">
+              <option value="CARGO_DIRECTIVO">Asunción de Cargo Directivo</option>
+              <option value="VERIFICACION">Verificación de Auditoría In Situ</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Título / Cargo <span class="text-red-500">*</span></label>
+            <input v-model="formEvento.titulo" type="text" required placeholder="Ej. MIEMBRO TITULAR CONSEJO" class="w-full border border-slate-300 rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-blue-500 text-sm uppercase">
+          </div>
+          <div v-if="formEvento.tipo === 'CARGO_DIRECTIVO'" class="grid grid-cols-2 gap-4">
+             <div>
+               <label class="block text-sm font-medium text-slate-700 mb-1">Período Desde</label>
+               <input v-model="formEvento.fechaInicio" type="date" class="w-full border border-slate-300 rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-blue-500 text-sm">
+             </div>
+             <div>
+               <label class="block text-sm font-medium text-slate-700 mb-1">Período Hasta</label>
+               <input v-model="formEvento.fechaFin" type="date" class="w-full border border-slate-300 rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-blue-500 text-sm">
+             </div>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Detalle / Resolución (Acta)</label>
+            <textarea v-model="formEvento.detalle" rows="3" class="w-full border border-slate-300 rounded-lg px-3 py-2 outline-none focus:ring-1 focus:ring-blue-500 text-sm"></textarea>
+          </div>
+        </div>
+        <div class="flex justify-end gap-3 mt-6">
+          <button type="submit" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-medium text-sm flex items-center gap-2">Guardar Evento</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>

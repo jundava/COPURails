@@ -1,0 +1,151 @@
+<!-- ARCHIVO: Vista_Reportes.html -->
+<div class="h-full flex flex-col space-y-4 relative">
+  
+  <!-- CABECERA -->
+  <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm shrink-0 flex flex-col md:flex-row md:justify-between md:items-center gap-4 z-10">
+    <div>
+      <h3 class="text-lg font-semibold text-slate-800 flex items-center gap-2">
+        <i class="ph ph-file-text text-blue-600 text-xl"></i> Centro de Reportes Regulatorios y Auditoría
+      </h3>
+      <p class="text-sm text-slate-500 mt-1">Generación de matrices para INCOOP, SEPRELAD y bitácora de trazabilidad de operaciones.</p>
+    </div>
+
+    <div class="bg-slate-100 p-1 rounded-xl flex">
+      <button @click="reportes.subTab = 'regulatorios'" :class="reportes.subTab === 'regulatorios' ? 'bg-white text-blue-600 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-800'" class="px-4 py-2 rounded-lg text-sm transition-all">
+        Matrices y Reportes
+      </button>
+      <button @click="reportes.subTab = 'auditoria'" :class="reportes.subTab === 'auditoria' ? 'bg-white text-blue-600 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-800'" class="px-4 py-2 rounded-lg text-sm transition-all">
+        Log de Auditoría (Trazabilidad)
+      </button>
+    </div>
+  </div>
+
+  <!-- SUB-VISTA 1: CATÁLOGO DE REPORTES -->
+  <div v-show="reportes.subTab === 'regulatorios'" class="flex-1 overflow-y-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pb-4">
+    <div v-for="rep in catalogoReportes" :key="rep.id" class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col justify-between hover:border-blue-300 transition-colors">
+      <div>
+        <div class="flex justify-between items-start mb-3">
+          <span class="text-[10px] font-bold px-2.5 py-1 rounded uppercase tracking-wider" :class="rep.entidad === 'INCOOP' ? 'bg-blue-100 text-blue-800' : rep.entidad === 'SEPRELAD' ? 'bg-purple-100 text-purple-800' : 'bg-emerald-100 text-emerald-800'">
+            {{ rep.entidad }}
+          </span>
+          <i class="ph ph-file-csv text-2xl text-slate-400"></i>
+        </div>
+        <h4 class="font-bold text-slate-800 text-base">{{ rep.titulo }}</h4>
+        <p class="text-xs text-slate-500 mt-1">{{ rep.descripcion }}</p>
+      </div>
+      
+      <div class="mt-5 pt-3 border-t border-slate-100 flex justify-between items-center">
+        <span class="text-[11px] text-slate-400 font-mono">Frecuencia: {{ rep.frecuencia }}</span>
+        <button @click="abrirVistaPreviaReporte(rep)" class="bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold px-3 py-2 rounded-lg flex items-center gap-1.5 transition-colors">
+          <i class="ph ph-eye"></i> Vista Previa
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUB-VISTA 2: BITÁCORA DE AUDITORÍA -->
+  <div v-show="reportes.subTab === 'auditoria'" class="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+    <div class="p-4 border-b border-slate-200 bg-slate-50 flex flex-col md:flex-row justify-between items-center gap-4 shrink-0">
+      <div class="flex items-center gap-2">
+        <span class="text-xs font-bold uppercase text-slate-500">Módulo:</span>
+        <select v-model="reportes.filtroModulo" class="border border-slate-300 rounded-lg px-3 py-1.5 text-sm bg-white outline-none">
+          <option value="TODOS">Todos los Módulos</option>
+          <option value="CAJA">Caja y Tesorería</option>
+          <option value="CREDITOS">Cartera de Créditos</option>
+          <option value="SOCIOS">Padrón Societario</option>
+          <option value="SEGURIDAD">Seguridad y Accesos</option>
+        </select>
+      </div>
+      <div class="relative w-full md:w-80">
+        <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+        <input v-model="reportes.busquedaLog" type="text" placeholder="Buscar por usuario, IP o acción..." class="w-full pl-9 pr-4 py-1.5 border border-slate-300 rounded-lg text-sm outline-none bg-white">
+      </div>
+    </div>
+
+    <div class="flex-1 overflow-auto">
+      <table class="w-full text-left border-collapse">
+        <thead class="bg-white sticky top-0 border-b border-slate-200 z-10">
+          <tr>
+            <th class="py-3 px-4 text-xs font-semibold text-slate-500 uppercase">Timestamp</th>
+            <th class="py-3 px-4 text-xs font-semibold text-slate-500 uppercase">Usuario / Sucursal</th>
+            <th class="py-3 px-4 text-xs font-semibold text-slate-500 uppercase">Módulo</th>
+            <th class="py-3 px-4 text-xs font-semibold text-slate-500 uppercase">Evento / Detalle Técnico</th>
+            <th class="py-3 px-4 text-xs font-semibold text-slate-500 uppercase text-center">Nivel</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 text-xs font-mono">
+          <tr v-for="log in logsAuditoriaFiltrados" :key="log.id" class="hover:bg-slate-50">
+            <td class="py-3 px-4 text-slate-500">{{ log.fecha_hora }}</td>
+            <td class="py-3 px-4">
+              <p class="font-bold text-slate-800">{{ log.usuario }}</p>
+              <p class="text-[10px] text-slate-400">{{ log.sucursal }} | IP: {{ log.ip }}</p>
+            </td>
+            <td class="py-3 px-4">
+              <span class="bg-slate-100 text-slate-700 font-bold px-2 py-0.5 rounded border border-slate-200">{{ log.modulo }}</span>
+            </td>
+            <td class="py-3 px-4 font-sans text-slate-700">{{ log.accion }}</td>
+            <td class="py-3 px-4 text-center">
+              <span :class="log.nivel === 'CRITICO' ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'" class="px-2 py-0.5 rounded font-bold text-[10px]">
+                {{ log.nivel }}
+              </span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- MODAL: VISTA PREVIA DEL REPORTE (DATOS DE PRUEBA)                         -->
+  <!-- ========================================================================= -->
+  <div v-if="reportes.mostrarModalPrevia && reporteSeleccionado" class="fixed inset-0 bg-slate-900/80 z-50 flex items-center justify-center backdrop-blur-sm p-4">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-5xl h-[85vh] flex flex-col border border-slate-200 overflow-hidden">
+      
+      <!-- Cabecera del Modal -->
+      <div class="bg-slate-800 text-white px-6 py-4 flex justify-between items-center shrink-0">
+        <div>
+           <h3 class="font-bold text-lg flex items-center gap-2"><i class="ph ph-table"></i> Vista Previa: {{ reporteSeleccionado.titulo }}</h3>
+           <p class="text-xs text-slate-300 font-mono mt-1">Entidad Destino: {{ reporteSeleccionado.entidad }} | Datos de prueba (Mockup)</p>
+        </div>
+        <button @click="reportes.mostrarModalPrevia = false" class="text-slate-400 hover:text-white transition-colors"><i class="ph ph-x text-2xl"></i></button>
+      </div>
+
+      <!-- Área de la Tabla de Datos -->
+      <div class="flex-1 overflow-auto bg-slate-50 p-6">
+         <div class="bg-white border border-slate-200 shadow-sm rounded-lg overflow-hidden">
+            <table class="w-full text-left border-collapse text-xs font-mono whitespace-nowrap">
+               <thead class="bg-slate-100 border-b border-slate-200 text-slate-600">
+                  <tr>
+                     <!-- Renderizado dinámico de las cabeceras según el reporte -->
+                     <th v-for="(col, index) in datosPreviaReporte.columnas" :key="index" class="py-2.5 px-4 font-bold uppercase tracking-wider">
+                        {{ col }}
+                     </th>
+                  </tr>
+               </thead>
+               <tbody class="divide-y divide-slate-100">
+                  <!-- Renderizado dinámico de las filas -->
+                  <tr v-for="(fila, rowIndex) in datosPreviaReporte.filas" :key="rowIndex" class="hover:bg-blue-50/50">
+                     <td v-for="(valor, colIndex) in fila" :key="colIndex" class="py-2.5 px-4 text-slate-700">
+                        {{ valor }}
+                     </td>
+                  </tr>
+               </tbody>
+            </table>
+         </div>
+      </div>
+
+      <!-- Pie del Modal (Acciones) -->
+      <div class="flex justify-between items-center p-4 bg-white border-t border-slate-200 shrink-0">
+        <span class="text-xs font-bold text-slate-400 uppercase">Mostrando {{ datosPreviaReporte.filas.length }} registros de prueba</span>
+        <div class="flex gap-3">
+           <button @click="reportes.mostrarModalPrevia = false" class="px-4 py-2 text-slate-600 text-sm font-medium hover:bg-slate-100 rounded-lg">Cerrar</button>
+           <button @click="exportarReporteDefinitivo" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-sm shadow flex items-center gap-2 transition-colors">
+              <i class="ph ph-download-simple"></i> Exportar CSV Oficial
+           </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+</div>

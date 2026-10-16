@@ -1,0 +1,149 @@
+<!-- ARCHIVO: Componente_Sidebar.html -->
+<aside class="w-64 bg-slate-900 text-slate-300 flex flex-col h-full shrink-0 select-none border-r border-slate-800">
+  
+  <!-- LOGO / BRAND -->
+  <div class="h-16 flex items-center gap-3 px-6 border-b border-slate-800 shrink-0">
+    <i class="ph ph-train text-2xl text-blue-400"></i>
+    <span class="text-white font-bold text-lg tracking-wide">CopuRails</span>
+  </div>
+
+  <!-- MENÚ SCROLLABLE -->
+  <nav class="flex-1 overflow-y-auto py-4 px-3 space-y-5">
+    
+    <!-- 1. DASHBOARD -->
+    <div>
+      <button @click="cambiarVista('dashboard')" 
+              :class="vistaActual === 'dashboard' ? 'bg-blue-600 text-white font-semibold shadow-sm' : 'text-slate-300 hover:bg-slate-800 hover:text-white'"
+              class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors">
+        <i class="ph ph-squares-four text-lg"></i>
+        <span>Dashboard Core</span>
+      </button>
+    </div>
+
+    <!-- 2. GESTIÓN SOCIETARIA -->
+    <div>
+      <button @click="toggleMenu('menu-socios')" class="w-full flex items-center justify-between px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-200 transition-colors">
+        <span>Gestión Societaria</span>
+        <i class="ph" :class="menusAbiertos['menu-socios'] ? 'ph-caret-up' : 'ph-caret-down'"></i>
+      </button>
+      <div v-show="menusAbiertos['menu-socios']" class="mt-1 ml-3 pl-3 border-l border-slate-700 space-y-1">
+        <button @click="cambiarVista('solicitud_ingreso')" :class="vistaActual === 'solicitud_ingreso' ? 'text-blue-400 font-bold bg-slate-800/60' : 'text-slate-300 hover:text-white hover:bg-slate-800/40'" class="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors">
+          Solicitud de Ingreso
+        </button>
+        <button @click="cambiarVista('mesa_entrada')" :class="vistaActual === 'mesa_entrada' ? 'text-blue-400 font-bold bg-slate-800/60' : 'text-slate-300 hover:text-white hover:bg-slate-800/40'" class="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors">
+          Mesa de Entrada
+        </button>
+        <button @click="cambiarVista('aprobacion_socios')" :class="vistaActual === 'aprobacion_socios' ? 'text-blue-400 font-bold bg-slate-800/60' : 'text-slate-300 hover:text-white hover:bg-slate-800/40'" class="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors">
+          Aprobaciones
+        </button>
+        <button @click="cambiarVista('padron_socios')" :class="vistaActual === 'padron_socios' ? 'text-blue-400 font-bold bg-slate-800/60' : 'text-slate-300 hover:text-white hover:bg-slate-800/40'" class="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors">
+          Padrón de Socios
+        </button>
+        <button @click="cambiarVista('grupo_familiar')" :class="vistaActual === 'grupo_familiar' ? 'text-blue-400 font-bold bg-slate-800/60' : 'text-slate-300 hover:text-white hover:bg-slate-800/40'" class="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors">
+          Grupo Familiar
+        </button>
+        <button @click="cambiarVista('movimientos_socios')" :class="vistaActual === 'movimientos_socios' ? 'text-blue-400 font-bold bg-slate-800/60' : 'text-slate-300 hover:text-white hover:bg-slate-800/40'" class="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors">
+          Movimientos
+        </button>
+        <button @click="cambiarVista('bajas_renuncias')" :class="vistaActual === 'bajas_renuncias' ? 'text-blue-400 font-bold bg-slate-800/60' : 'text-slate-300 hover:text-white hover:bg-slate-800/40'" class="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors">
+          Bajas y Renuncias
+        </button>
+      </div>
+    </div>
+
+    <!-- 3. BENEFICIOS & CONVENIOS -->
+    <div>
+      <button @click="toggleMenu('menu-beneficios')" class="w-full flex items-center justify-between px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-200 transition-colors">
+        <span>Beneficios & Convenios</span>
+        <i class="ph" :class="menusAbiertos['menu-beneficios'] ? 'ph-caret-up' : 'ph-caret-down'"></i>
+      </button>
+      
+      <div v-show="menusAbiertos['menu-beneficios']" class="mt-1 ml-3 pl-3 border-l border-slate-700 space-y-1">
+        <button @click="cambiarVista('solicitud_beneficios')" :class="vistaActual === 'solicitud_beneficios' ? 'text-blue-400 font-bold bg-slate-800/60' : 'text-slate-300 hover:text-white hover:bg-slate-800/40'" class="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors">
+          Convenios y Subsidios
+        </button>
+        <button @click="cambiarVista('aportes_especiales')" :class="vistaActual === 'aportes_especiales' ? 'text-blue-400 font-bold bg-slate-800/60' : 'text-slate-300 hover:text-white hover:bg-slate-800/40'" class="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors">
+          Aportes Especiales
+        </button>
+      </div>
+    </div>
+
+    <!-- 4. CRÉDITO Y AHORRO (Solo Productos Financieros) -->
+    <div>
+      <button @click="toggleMenu('menu-credito')" class="w-full flex items-center justify-between px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-200 transition-colors">
+        <span>Crédito y Ahorro</span>
+        <i class="ph" :class="menusAbiertos['menu-credito'] ? 'ph-caret-up' : 'ph-caret-down'"></i>
+      </button>
+      
+      <div v-show="menusAbiertos['menu-credito']" class="mt-1 ml-3 pl-3 border-l border-slate-700 space-y-1">
+        <button @click="cambiarVista('solicitud_credito')" :class="vistaActual === 'solicitud_credito' ? 'text-blue-400 font-bold bg-slate-800/60' : 'text-slate-300 hover:text-white hover:bg-slate-800/40'" class="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors">
+          Solicitud Crédito
+        </button>
+        <button @click="cambiarVista('aprobacion_creditos')" :class="vistaActual === 'aprobacion_creditos' ? 'text-blue-400 font-bold bg-slate-800/60' : 'text-slate-300 hover:text-white hover:bg-slate-800/40'" class="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center justify-between">
+          <span>Aprobación Créditos</span>
+          <span class="bg-amber-500/20 text-amber-300 text-[10px] font-mono px-1.5 py-0.5 rounded">{{ listaSolicitudesCredito?.filter(s => s.estado !== 'APROBADO' && s.estado !== 'RECHAZADO').length || 0 }}</span>
+        </button>
+        <button @click="cambiarVista('maestro_prestamos')" :class="vistaActual === 'maestro_prestamos' ? 'text-blue-400 font-bold bg-slate-800/60' : 'text-slate-300 hover:text-white hover:bg-slate-800/40'" class="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors">
+          Maestro Préstamos
+        </button>
+        <button @click="cambiarVista('garantias_seguros')" :class="vistaActual === 'garantias_seguros' ? 'text-blue-400 font-bold bg-slate-800/60' : 'text-slate-300 hover:text-white hover:bg-slate-800/40'" class="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors">
+          Garantías y Seguros
+        </button>
+        <button @click="cambiarVista('ahorros')" :class="vistaActual === 'ahorros' ? 'text-blue-400 font-bold bg-slate-800/60' : 'text-slate-300 hover:text-white hover:bg-slate-800/40'" class="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors">
+          Cuentas de Ahorro
+        </button>
+      </div>
+    </div>
+
+    <!-- 5. CAJA Y TESORERÍA (Nuevo Bloque Separado) -->
+    <div>
+      <button @click="toggleMenu('menu-tesoreria')" class="w-full flex items-center justify-between px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-200 transition-colors">
+        <span>Caja y Tesorería</span>
+        <i class="ph" :class="menusAbiertos['menu-tesoreria'] ? 'ph-caret-up' : 'ph-caret-down'"></i>
+      </button>
+      
+      <div v-show="menusAbiertos['menu-tesoreria']" class="mt-1 ml-3 pl-3 border-l border-emerald-800/60 space-y-1">
+        <button @click="cambiarVista('caja')" :class="vistaActual === 'caja' ? 'text-emerald-400 font-bold bg-slate-800/60' : 'text-slate-300 hover:text-white hover:bg-slate-800/40'" class="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center gap-2">
+          <i class="ph ph-cash-register text-base"></i> Caja Operativa
+        </button>
+        <button @click="cambiarVista('tesoreria')" :class="vistaActual === 'tesoreria' ? 'text-emerald-400 font-bold bg-slate-800/60' : 'text-slate-300 hover:text-white hover:bg-slate-800/40'" class="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center gap-2">
+          <i class="ph ph-vault text-base"></i> Tesorería
+        </button>
+      </div>
+    </div>
+
+    <!-- 6. ACTIVO FIJO -->
+    <div>
+      <button @click="toggleMenu('menu-activos')" class="w-full flex items-center justify-between px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-200 transition-colors">
+        <span>Activo Fijo</span>
+        <i class="ph" :class="menusAbiertos['menu-activos'] ? 'ph-caret-up' : 'ph-caret-down'"></i>
+      </button>
+      
+      <div v-show="menusAbiertos['menu-activos']" class="mt-1 ml-3 pl-3 border-l border-slate-700 space-y-1">
+        <button @click="cambiarVista('inventario_activos')" :class="vistaActual === 'inventario_activos' ? 'text-blue-400 font-bold bg-slate-800/60' : 'text-slate-300 hover:text-white hover:bg-slate-800/40'" class="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors">
+          Inventario Bienes de Uso
+        </button>
+        <button @click="cambiarVista('depreciacion_activos')" :class="vistaActual === 'depreciacion_activos' ? 'text-blue-400 font-bold bg-slate-800/60' : 'text-slate-300 hover:text-white hover:bg-slate-800/40'" class="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors">
+          Revalúo y Depreciación
+        </button>
+      </div>
+    </div>
+
+    <!-- 7. ADMINISTRACIÓN Y CONFIGURACIÓN -->
+    <div class="pt-3 border-t border-slate-800 space-y-1">
+      <button @click="cambiarVista('reportes')" :class="vistaActual === 'reportes' ? 'bg-slate-800 text-white font-semibold' : 'text-slate-300 hover:bg-slate-800 hover:text-white'" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors">
+        <i class="ph ph-file-text text-lg"></i>
+        <span>Reportes y Auditoría</span>
+      </button>
+      <button @click="cambiarVista('parametria')" :class="vistaActual === 'parametria' ? 'bg-slate-800 text-white font-semibold' : 'text-slate-300 hover:bg-slate-800 hover:text-white'" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors">
+        <i class="ph ph-gear text-lg"></i>
+        <span>Parametría General</span>
+      </button>
+      <button @click="cambiarVista('admin_users')" :class="vistaActual === 'admin_users' ? 'bg-slate-800 text-white font-semibold' : 'text-slate-300 hover:bg-slate-800 hover:text-white'" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors">
+        <i class="ph ph-shield-check text-lg"></i>
+        <span>Admin Users</span>
+      </button>
+    </div>
+
+  </nav>
+</aside>

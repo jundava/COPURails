@@ -1,0 +1,162 @@
+<!-- ARCHIVO: Vista_BeneficiosConvenios.html -->
+<div class="h-full flex flex-col space-y-4">
+  
+  <!-- CABECERA DE MÓDULO -->
+  <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm shrink-0 flex justify-between items-center">
+    <div>
+      <h3 class="text-lg font-semibold text-slate-800 flex items-center gap-2">
+        <i class="ph ph-handshake text-blue-600"></i> Beneficios, Convenios y Solidaridad
+      </h3>
+      <p class="text-sm text-slate-500 mt-1">Alianzas comerciales, descuentos a socios y subsidios solidarios.</p>
+    </div>
+    
+    <!-- Navegación interna de Pestañas -->
+    <div class="bg-slate-100 p-1 rounded-xl flex">
+       <button @click="beneficios.subTab = 'convenios'" :class="beneficios.subTab === 'convenios' ? 'bg-white text-blue-600 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-800'" class="px-4 py-2 rounded-lg text-sm transition-all">Convenios Comerciales</button>
+       <button @click="beneficios.subTab = 'subsidios'" :class="beneficios.subTab === 'subsidios' ? 'bg-white text-blue-600 shadow-sm font-bold' : 'text-slate-600 hover:text-slate-800'" class="px-4 py-2 rounded-lg text-sm transition-all">Subsidios y Solidaridad</button>
+    </div>
+  </div>
+
+  <!-- SECCIÓN 1: CONVENIOS Y ENTIDADES -->
+  <div v-show="beneficios.subTab === 'convenios'" class="flex-1 flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+     <div class="border-b border-slate-200 bg-slate-50 px-6 py-3 flex justify-between items-center shrink-0">
+        <h4 class="font-semibold text-slate-700 text-sm uppercase tracking-wider">Comercios e Instituciones Aliadas</h4>
+        <button @click="abrirModalConvenio()" class="text-sm bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg flex items-center gap-2 transition-colors shadow-sm">
+           <i class="ph ph-plus-circle text-lg"></i> Registrar Nuevo Convenio
+        </button>
+     </div>
+     
+     <div class="flex-1 overflow-auto p-0">
+        <table class="w-full text-left border-collapse">
+           <thead class="bg-white sticky top-0 border-b border-slate-200 shadow-sm z-10">
+              <tr>
+                 <th class="py-3 px-6 text-xs font-semibold text-slate-500 uppercase">Entidad / Comercio</th>
+                 <th class="py-3 px-6 text-xs font-semibold text-slate-500 uppercase">RUC</th>
+                 <th class="py-3 px-6 text-xs font-semibold text-slate-500 uppercase">Vigencia del Acuerdo</th>
+                 <th class="py-3 px-6 text-xs font-semibold text-slate-500 uppercase">Descuento Ofrecido</th>
+                 <th class="py-3 px-6 text-xs font-semibold text-slate-500 uppercase text-right">Acciones</th>
+              </tr>
+           </thead>
+           <tbody class="divide-y divide-slate-100 text-sm">
+              <tr v-for="c in baseConvenios" :key="c.id" class="hover:bg-slate-50">
+                 <td class="py-4 px-6 font-bold text-slate-800">{{ c.entidad }}</td>
+                 <td class="py-4 px-6 text-slate-600 font-mono">{{ c.ruc }}</td>
+                 <td class="py-4 px-6 text-slate-600">{{ c.vigencia }}</td>
+                 <td class="py-4 px-6"><span class="bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1 rounded text-xs">{{ c.descuento }}</span></td>
+                 <td class="py-4 px-6 text-right">
+                    <button class="text-blue-600 hover:bg-blue-50 font-medium px-3 py-1.5 border border-blue-200 rounded text-xs">Vincular Socio</button>
+                 </td>
+              </tr>
+           </tbody>
+        </table>
+     </div>
+  </div>
+
+  <!-- SECCIÓN 2: SUBSIDIOS Y SOLIDARIDAD -->
+  <div v-show="beneficios.subTab === 'subsidios'" class="flex-1 flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+     <div class="border-b border-slate-200 bg-slate-50 px-6 py-3 flex justify-between items-center shrink-0">
+        <h4 class="font-semibold text-slate-700 text-sm uppercase tracking-wider">Solicitudes de Asistencia y Subsidios Solidarios</h4>
+        <button @click="abrirModalSubsidio()" class="text-sm bg-emerald-600 hover:bg-emerald-700 text-white font-medium px-4 py-2 rounded-lg flex items-center gap-2 transition-colors shadow-sm">
+           <i class="ph ph-heart text-lg"></i> Cargar Solicitud de Subsidio
+        </button>
+     </div>
+     
+     <div class="flex-1 overflow-auto p-0">
+        <table class="w-full text-left border-collapse">
+           <thead class="bg-white sticky top-0 border-b border-slate-200 shadow-sm z-10">
+              <tr>
+                 <th class="py-3 px-6 text-xs font-semibold text-slate-500 uppercase">Nro Solicitud</th>
+                 <th class="py-3 px-6 text-xs font-semibold text-slate-500 uppercase">Socio Solicitante</th>
+                 <th class="py-3 px-6 text-xs font-semibold text-slate-500 uppercase">Motivo / Destino</th>
+                 <th class="py-3 px-6 text-xs font-semibold text-slate-500 uppercase text-right">Importe (Gs.)</th>
+                 <th class="py-3 px-6 text-xs font-semibold text-slate-500 uppercase text-center">Estado Comité / Consejo</th>
+                 <th class="py-3 px-6 text-xs font-semibold text-slate-500 uppercase text-right">Acción</th>
+              </tr>
+           </thead>
+           <tbody class="divide-y divide-slate-100 text-sm">
+              <tr v-for="sub in baseSubsidios" :key="sub.id" class="hover:bg-slate-50">
+                 <td class="py-4 px-6 font-mono font-bold text-slate-800">{{ sub.nro }}</td>
+                 <td class="py-4 px-6 font-medium text-slate-800">{{ sub.socio }}</td>
+                 <td class="py-4 px-6 text-slate-600">{{ sub.destino }}</td>
+                 <td class="py-4 px-6 text-right font-mono font-bold text-slate-800">Gs. {{ formatCurrency(sub.importe) }}</td>
+                 <td class="py-4 px-6 text-center">
+                    <span class="bg-amber-100 text-amber-800 text-[10px] font-bold px-2.5 py-1 rounded uppercase tracking-wider">{{ sub.estado }}</span>
+                 </td>
+                 <td class="py-4 px-6 text-right">
+                    <button class="text-blue-600 bg-white hover:bg-blue-50 font-medium px-3 py-1.5 border border-blue-200 rounded text-xs shadow-sm">Evaluar Subsidio</button>
+                 </td>
+              </tr>
+           </tbody>
+        </table>
+     </div>
+  </div>
+
+  <!-- MODAL: NUEVO CONVENIO -->
+  <div v-if="beneficios.mostrarModalConvenio" class="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center backdrop-blur-sm p-4">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 flex flex-col border border-slate-200">
+      <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-xl shrink-0">
+        <h3 class="font-semibold text-slate-800">Registrar Alianza Comercial</h3>
+        <button @click="beneficios.mostrarModalConvenio = false"><i class="ph ph-x text-lg text-slate-400"></i></button>
+      </div>
+      <form @submit.prevent="guardarConvenio" class="p-6 space-y-4">
+        <div>
+           <label class="block text-sm font-medium text-slate-700 mb-1">Nombre de la Entidad / Comercio</label>
+           <input v-model="formConvenio.entidad" type="text" required placeholder="Ej. Universidad Católica" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none">
+        </div>
+        <div>
+           <label class="block text-sm font-medium text-slate-700 mb-1">RUC de la Entidad</label>
+           <input v-model="formConvenio.ruc" type="text" required placeholder="80012345-6" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none font-mono">
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+           <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Vigencia Desde</label>
+              <input v-model="formConvenio.desde" type="date" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none">
+           </div>
+           <div>
+              <label class="block text-sm font-medium text-slate-700 mb-1">Vigencia Hasta</label>
+              <input v-model="formConvenio.hasta" type="date" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none">
+           </div>
+        </div>
+        <div>
+           <label class="block text-sm font-medium text-slate-700 mb-1">Beneficio / Descuento Ofrecido</label>
+           <input v-model="formConvenio.descuento" type="text" required placeholder="Ej. 20% en aranceles" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none">
+        </div>
+        <div class="flex justify-end gap-3 mt-6 border-t pt-4">
+          <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium">Guardar Convenio</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: NUEVO SUBSIDIO -->
+  <div v-if="beneficios.mostrarModalSubsidio" class="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center backdrop-blur-sm p-4">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 flex flex-col border border-slate-200">
+      <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-xl shrink-0">
+        <h3 class="font-semibold text-slate-800">Solicitud de Subsidio Solidario</h3>
+        <button @click="beneficios.mostrarModalSubsidio = false"><i class="ph ph-x text-lg text-slate-400"></i></button>
+      </div>
+      <form @submit.prevent="guardarSubsidio" class="p-6 space-y-4">
+        <div>
+           <label class="block text-sm font-medium text-slate-700 mb-1">Nro de Socio Solicitante</label>
+           <input v-model="formSubsidio.socio" type="text" required placeholder="12544" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none font-mono">
+        </div>
+        <div>
+           <label class="block text-sm font-medium text-slate-700 mb-1">Destino del Subsidio</label>
+           <select v-model="formSubsidio.destino" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none">
+              <option value="SALUD Y RECUPERACIÓN">Asistencia por Salud / Médica</option>
+              <option value="SUBSIDIO POR NACIMIENTO">Subsidio por Nacimiento</option>
+              <option value="SUBSIDIO POR FALLECIMIENTO">Subsidio por Fallecimiento (Familiar)</option>
+           </select>
+        </div>
+        <div>
+           <label class="block text-sm font-medium text-slate-700 mb-1">Importe Solicitado (Gs.)</label>
+           <input v-model.number="formSubsidio.importe" type="number" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none text-right font-mono font-bold">
+        </div>
+        <div class="flex justify-end gap-3 mt-6 border-t pt-4">
+          <button type="submit" class="px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium">Registrar y Enviar a Comité</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>

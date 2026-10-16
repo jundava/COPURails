@@ -1,0 +1,178 @@
+<!-- ARCHIVO: Vista_MesaEntrada.html -->
+<div class="h-full flex flex-col space-y-4">
+  
+  <!-- Header y Filtros -->
+  <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm shrink-0">
+    <div class="flex justify-between items-center mb-4">
+      <h3 class="text-lg font-semibold text-slate-800 flex items-center gap-2">
+        <i class="ph ph-folder-open text-blue-600"></i> Mesa de Entrada (Solicitudes)
+      </h3>
+      <button @click="abrirNuevoIngreso()" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium text-sm flex items-center gap-2 transition-colors">
+        <i class="ph ph-plus-circle text-lg"></i> Nuevo Expediente
+      </button>
+    </div>
+    
+    <!-- Filtros de Búsqueda -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-50 p-3 rounded-lg border border-slate-100">
+      <div>
+        <label class="block text-xs font-medium text-slate-500 mb-1">Buscar Postulante</label>
+        <input type="text" v-model="mesaEntrada.filtroNombre" placeholder="Nombre o CI..." class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-blue-500">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-slate-500 mb-1">Estado</label>
+        <select v-model="mesaEntrada.filtroEstado" class="w-full border border-slate-300 rounded-lg px-3 py-1.5 text-sm outline-none focus:ring-1 focus:ring-blue-500">
+          <option value="TODOS">Todos los Estados</option>
+          <option value="PENDIENTE_RECEPCION">Pendiente de Recepción</option>
+          <option value="EN_EVALUACION">En Evaluación (Comité)</option>
+        </select>
+      </div>
+      <div class="md:col-span-2 flex items-end">
+         <p class="text-xs font-medium text-slate-500 w-full text-right pb-1">
+           Sucursal Activa: <span class="font-bold text-slate-700">{{ tenant.sucursal }}</span>
+         </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Grilla de Expedientes -->
+  <div v-if="!mesaEntrada.mostrarFormulario" class="bg-white rounded-xl border border-slate-200 shadow-sm flex-1 flex flex-col overflow-hidden">
+    <div class="flex-1 overflow-auto">
+      <table class="w-full text-left border-collapse">
+        <thead class="bg-slate-50 sticky top-0 border-b border-slate-200 shadow-sm z-10">
+          <tr>
+            <th class="py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Fecha</th>
+            <th class="py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Nro. Solicitud</th>
+            <th class="py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Documento</th>
+            <th class="py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Postulante</th>
+            <th class="py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Estado</th>
+            <th class="py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Acción</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 text-sm">
+          <!-- Simulación de datos iterados -->
+          <tr v-for="solicitud in solicitudesFiltradas" :key="solicitud.id" class="hover:bg-slate-50">
+            <td class="py-3 px-4 text-slate-600">{{ solicitud.fecha }}</td>
+            <td class="py-3 px-4 font-mono text-slate-600">{{ solicitud.nro_solicitud }}</td>
+            <td class="py-3 px-4 text-slate-600">{{ solicitud.nro_documento }}</td>
+            <td class="py-3 px-4 text-slate-800 font-medium">{{ solicitud.nombre_completo }}</td>
+            <td class="py-3 px-4">
+              <span :class="solicitud.estado === 'PENDIENTE_RECEPCION' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'" class="px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wide">
+                {{ solicitud.estado.replace('_', ' ') }}
+              </span>
+            </td>
+            <td class="py-3 px-4 text-right">
+              <button v-if="solicitud.estado === 'PENDIENTE_RECEPCION'" @click="abrirChecklist(solicitud)" class="text-blue-600 hover:bg-blue-50 font-medium px-3 py-1.5 border border-blue-200 rounded shadow-sm transition-colors text-xs inline-flex items-center gap-1">
+                <i class="ph ph-check-square-offset"></i> Recepcionar
+              </button>
+              <button v-else class="text-slate-400 hover:text-slate-600 px-3 py-1.5 border border-transparent hover:bg-slate-100 rounded transition-colors text-xs">
+                Ver Detalles
+              </button>
+            </td>
+          </tr>
+          
+          <!-- Estado Vacio -->
+          <tr v-if="solicitudesFiltradas.length === 0">
+             <td colspan="6" class="py-8 text-center text-slate-500">
+                No hay expedientes en esta bandeja para la sucursal actual.
+             </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Formulario de Nuevo Ingreso (Onboarding) -->
+  <div v-else class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex-1 flex flex-col">
+    <div class="bg-slate-50 border-b border-slate-200 px-6 py-4 flex justify-between items-center shrink-0">
+      <div>
+        <p class="text-sm font-medium text-blue-600">Nro. Solicitud Interna: <span class="font-mono">SISTEMA ASIGNARÁ</span></p>
+        <h3 class="text-lg font-semibold text-slate-800">Carga de Solicitud de Ingreso</h3>
+      </div>
+      <button @click="mesaEntrada.mostrarFormulario = false" class="text-slate-500 hover:text-slate-700 bg-white border border-slate-300 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors">
+        Volver a la Grilla
+      </button>
+    </div>
+    
+    <div class="p-6 md:p-8 overflow-y-auto flex-1">
+      <form @submit.prevent="guardarNuevoIngreso" class="max-w-4xl mx-auto">
+        
+        <h4 class="text-sm uppercase tracking-wider font-semibold text-slate-500 mb-4 pb-2 border-b">1. Datos de Identificación</h4>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Tipo Documento <span class="text-red-500">*</span></label>
+            <select v-model="nuevoIngreso.tipo_documento" class="w-full border border-slate-300 rounded-lg px-4 py-2.5 outline-none focus:ring-1 focus:ring-blue-500">
+              <option value="CEDULA DE IDENTIDAD">CÉDULA DE IDENTIDAD</option>
+              <option value="PASAPORTE">PASAPORTE</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Nro. Documento <span class="text-red-500">*</span></label>
+            <div class="flex">
+              <input v-model="nuevoIngreso.nro_documento" type="text" required placeholder="Ej. 3467990" class="w-full border border-slate-300 rounded-l-lg px-4 py-2.5 outline-none focus:ring-1 focus:ring-blue-500">
+              <button type="button" class="bg-slate-100 border border-slate-300 border-l-0 rounded-r-lg px-4 hover:bg-slate-200 text-slate-600" title="Validar en Base de Datos">
+                <i class="ph ph-magnifying-glass"></i>
+              </button>
+            </div>
+          </div>
+          <div class="md:col-span-2">
+            <label class="block text-sm font-medium text-slate-700 mb-1">Nombre Completo <span class="text-red-500">*</span></label>
+            <input v-model="nuevoIngreso.nombre_completo" type="text" required placeholder="Apellidos y Nombres" class="w-full border border-slate-300 rounded-lg px-4 py-2.5 outline-none focus:ring-1 focus:ring-blue-500">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-700 mb-1">Teléfono / Celular</label>
+            <input v-model="nuevoIngreso.telefono" type="text" class="w-full border border-slate-300 rounded-lg px-4 py-2.5 outline-none focus:ring-1 focus:ring-blue-500">
+          </div>
+        </div>
+
+        <h4 class="text-sm uppercase tracking-wider font-semibold text-slate-500 mb-4 pb-2 border-b">2. Proponentes (Opcional)</h4>
+        <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-8 space-y-4">
+          <div class="flex items-center gap-3">
+            <input v-model="nuevoIngreso.proponente1_id" type="text" placeholder="Nro Socio Proponente 1" class="w-1/3 border border-slate-300 rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-blue-500">
+          </div>
+          <div class="flex items-center gap-3">
+            <input v-model="nuevoIngreso.proponente2_id" type="text" placeholder="Nro Socio Proponente 2" class="w-1/3 border border-slate-300 rounded-lg px-4 py-2 outline-none focus:ring-1 focus:ring-blue-500">
+          </div>
+        </div>
+
+        <div class="flex justify-end gap-3 pt-4 border-t border-slate-200">
+          <button type="button" @click="mesaEntrada.mostrarFormulario = false" class="px-5 py-2.5 border border-slate-300 text-slate-700 rounded-lg font-medium hover:bg-slate-50">Cancelar</button>
+          <button type="submit" :disabled="loading" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium shadow-sm flex items-center gap-2">
+            <span v-if="loading" class="animate-spin border-2 border-white border-t-transparent rounded-full w-4 h-4"></span>
+            <i v-else class="ph ph-paper-plane-right"></i> 
+            Guardar y Derivar Expediente
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL: Checklist de Recepción Física (Reutilizando tu mockup) -->
+  <!-- Esto se mantendría oculto con v-if="mesaEntrada.mostrarModalChecklist" -->
+  <div v-if="mesaEntrada.mostrarModalChecklist" class="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center backdrop-blur-sm">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 flex flex-col">
+      <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+        <h3 class="font-semibold text-slate-800 flex items-center gap-2"><i class="ph ph-folder-open text-blue-600"></i> Control Documental Físico</h3>
+        <button @click="cerrarChecklist()"><i class="ph ph-x text-lg text-slate-400 hover:text-slate-600"></i></button>
+      </div>
+      <div class="p-6">
+        <div class="mb-5 pb-4 border-b border-slate-100">
+          <p class="text-lg font-bold text-slate-800 uppercase">{{ mesaEntrada.solicitudSeleccionada.nombre_completo }}</p>
+          <p class="text-sm text-slate-500 font-mono mt-1">Expediente: {{ mesaEntrada.solicitudSeleccionada.nro_solicitud }}</p>
+        </div>
+        <p class="text-sm font-semibold text-slate-700 mb-3 uppercase tracking-wider">Checklist Requerido (KYC):</p>
+        <div class="space-y-3 mb-6 bg-slate-50 p-4 rounded-lg border border-slate-200">
+          <label class="flex items-center gap-3 cursor-pointer"><input type="checkbox" v-model="mesaEntrada.checklist.cedula" class="w-5 h-5 text-blue-600 rounded"><span class="text-sm font-medium">Cédula de Identidad Vigente</span></label>
+          <label class="flex items-center gap-3 cursor-pointer"><input type="checkbox" v-model="mesaEntrada.checklist.ingresos" class="w-5 h-5 text-blue-600 rounded"><span class="text-sm font-medium">Comprobante de Ingresos</span></label>
+          <label class="flex items-center gap-3 cursor-pointer"><input type="checkbox" v-model="mesaEntrada.checklist.factura" class="w-5 h-5 text-blue-600 rounded"><span class="text-sm font-medium">Factura Servicio Público (Dirección)</span></label>
+        </div>
+      </div>
+      <div class="px-6 py-4 border-t border-slate-200 flex justify-end gap-3 bg-slate-50">
+        <button @click="cerrarChecklist()" class="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-lg font-medium">Cancelar</button>
+        <button @click="confirmarRecepcion()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium flex items-center gap-2">
+          <i class="ph ph-check-circle"></i> Recepcionar
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div>

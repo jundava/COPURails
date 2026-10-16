@@ -1,0 +1,212 @@
+<!-- ARCHIVO: Vista_InventarioActivos.html -->
+<div class="h-full flex flex-col space-y-4">
+  
+  <!-- CABECERA Y KPIs RÁPIDOS -->
+  <div class="bg-white p-5 rounded-xl border border-slate-200 shadow-sm shrink-0 flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+    <div>
+      <h3 class="text-lg font-semibold text-slate-800 flex items-center gap-2">
+        <i class="ph ph-desktop-tower text-blue-600 text-xl"></i> Padrón e Inventario de Bienes de Uso
+      </h3>
+      <p class="text-sm text-slate-500 mt-1">Registro patrimonial, asignación de responsables, traslados entre sucursales y bajas.</p>
+    </div>
+
+    <div class="flex items-center gap-3">
+      <button @click="abrirModalTraslado()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium flex items-center gap-2 transition-colors border border-slate-300">
+        <i class="ph ph-arrows-left-right"></i> Trasladar Bien
+      </button>
+      <button @click="abrirModalAltaActivo()" class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold flex items-center gap-2 transition-colors shadow-sm">
+        <i class="ph ph-plus-circle text-lg"></i> Incorporar Bien de Uso
+      </button>
+    </div>
+  </div>
+
+  <!-- TARJETAS DE RESUMEN PATRIMONIAL -->
+  <div class="grid grid-cols-1 md:grid-cols-4 gap-4 shrink-0">
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+      <p class="text-[11px] font-bold uppercase text-slate-400">Total Bienes Activos</p>
+      <p class="text-2xl font-bold text-slate-800 mt-1">{{ listaActivosFijos.filter(a => a.estado === 'ACTIVO').length }} <span class="text-xs font-normal text-slate-500">ítems</span></p>
+    </div>
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+      <p class="text-[11px] font-bold uppercase text-slate-400">Costo de Adquisición Histórico</p>
+      <p class="text-xl font-mono font-bold text-slate-800 mt-1">Gs. {{ formatCurrency(resumenActivos.costoHistorico) }}</p>
+    </div>
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+      <p class="text-[11px] font-bold uppercase text-amber-600">Depreciación Acumulada</p>
+      <p class="text-xl font-mono font-bold text-amber-600 mt-1">Gs. {{ formatCurrency(resumenActivos.depreciacionAcumulada) }}</p>
+    </div>
+    <div class="bg-emerald-50 p-4 rounded-xl border border-emerald-200 shadow-sm">
+      <p class="text-[11px] font-bold uppercase text-emerald-700">Valor Neto Contable (Actual)</p>
+      <p class="text-xl font-mono font-bold text-emerald-800 mt-1">Gs. {{ formatCurrency(resumenActivos.valorNetoTotal) }}</p>
+    </div>
+  </div>
+
+  <!-- BARRA DE FILTROS Y TABLA DE INVENTARIO -->
+  <div class="bg-white rounded-xl border border-slate-200 shadow-sm flex-1 flex flex-col overflow-hidden">
+    <div class="p-4 border-b border-slate-200 bg-slate-50 flex flex-col md:flex-row justify-between items-center gap-4 shrink-0">
+      <div class="flex flex-wrap items-center gap-3 w-full md:w-auto">
+        <select v-model="activos.filtroRubro" class="border border-slate-300 rounded-lg px-3 py-1.5 text-sm bg-white outline-none">
+          <option value="TODOS">Todos los Rubros Contables</option>
+          <option value="EQUIPOS DE INFORMÁTICA">Equipos de Informática (4 años)</option>
+          <option value="MUEBLES Y ÚTILES">Muebles y Útiles (10 años)</option>
+          <option value="RODADOS">Rodados / Vehículos (5 años)</option>
+          <option value="INMUEBLES">Inmuebles y Edificios (40 años)</option>
+        </select>
+        <select v-model="activos.filtroSucursal" class="border border-slate-300 rounded-lg px-3 py-1.5 text-sm bg-white outline-none">
+          <option value="TODAS">Todas las Sucursales</option>
+          <option value="CASA CENTRAL">CASA CENTRAL</option>
+          <option value="AGENCIA SAN LORENZO">AGENCIA SAN LORENZO</option>
+          <option value="AGENCIA LUQUE">AGENCIA LUQUE</option>
+        </select>
+      </div>
+      <div class="relative w-full md:w-72">
+        <i class="ph ph-barcode absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+        <input v-model="activos.busqueda" type="text" placeholder="Buscar código, serie o descripción..." class="w-full pl-9 pr-4 py-1.5 border border-slate-300 rounded-lg text-sm outline-none bg-white">
+      </div>
+    </div>
+
+    <div class="flex-1 overflow-auto">
+      <table class="w-full text-left border-collapse">
+        <thead class="bg-white sticky top-0 border-b border-slate-200 shadow-sm z-10">
+          <tr>
+            <th class="py-3 px-4 text-xs font-semibold text-slate-500 uppercase">Etiqueta / Código</th>
+            <th class="py-3 px-4 text-xs font-semibold text-slate-500 uppercase">Descripción y Serie</th>
+            <th class="py-3 px-4 text-xs font-semibold text-slate-500 uppercase">Rubro / Vida Útil</th>
+            <th class="py-3 px-4 text-xs font-semibold text-slate-500 uppercase">Ubicación y Responsable</th>
+            <th class="py-3 px-4 text-xs font-semibold text-slate-500 uppercase text-right">Costo Orig. (Gs.)</th>
+            <th class="py-3 px-4 text-xs font-semibold text-slate-500 uppercase text-right">Valor Neto (Gs.)</th>
+            <th class="py-3 px-4 text-xs font-semibold text-slate-500 uppercase text-center">Estado</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 text-sm">
+          <tr v-for="bien in activosFiltrados" :key="bien.id" class="hover:bg-slate-50 transition-colors">
+            <td class="py-3.5 px-4">
+              <span class="font-mono font-bold text-slate-800 bg-slate-100 px-2 py-1 rounded border border-slate-200 text-xs">
+                {{ bien.codigo }}
+              </span>
+              <p class="text-[11px] text-slate-400 mt-1">Alta: {{ bien.fecha_compra }}</p>
+            </td>
+            <td class="py-3.5 px-4">
+              <p class="font-bold text-slate-800">{{ bien.descripcion }}</p>
+              <p class="text-xs text-slate-500 font-mono">S/N: {{ bien.nro_serie }} | Fact: {{ bien.factura }}</p>
+            </td>
+            <td class="py-3.5 px-4">
+              <span class="text-xs font-semibold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">{{ bien.rubro }}</span>
+              <p class="text-xs text-slate-500 mt-1">Restan: <strong>{{ bien.vida_util_restante }}</strong> de {{ bien.vida_util_total }} años</p>
+            </td>
+            <td class="py-3.5 px-4">
+              <p class="font-semibold text-slate-700 text-xs">{{ bien.sucursal }}</p>
+              <p class="text-xs text-slate-500">{{ bien.responsable }}</p>
+            </td>
+            <td class="py-3.5 px-4 text-right font-mono text-slate-600">
+              {{ formatCurrency(bien.costo_inicial) }}
+            </td>
+            <td class="py-3.5 px-4 text-right font-mono font-bold text-emerald-700">
+              {{ formatCurrency(bien.valor_neto) }}
+            </td>
+            <td class="py-3.5 px-4 text-center">
+              <span v-if="bien.estado === 'ACTIVO'" class="bg-emerald-100 text-emerald-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase">En Uso</span>
+              <span v-else class="bg-red-100 text-red-800 text-[10px] font-bold px-2 py-0.5 rounded uppercase">Dado de Baja</span>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- MODAL 1: ALTA DE NUEVO BIEN DE USO -->
+  <div v-if="activos.mostrarModalAlta" class="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center backdrop-blur-sm p-4">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl flex flex-col border border-slate-200 overflow-hidden">
+      <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+        <h3 class="font-semibold text-slate-800 flex items-center gap-2"><i class="ph ph-plus-circle text-blue-600"></i> Incorporación de Bien de Uso</h3>
+        <button @click="activos.mostrarModalAlta = false"><i class="ph ph-x text-lg text-slate-400"></i></button>
+      </div>
+      <form @submit.prevent="guardarNuevoActivo" class="p-6 space-y-4 overflow-y-auto max-h-[75vh]">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Código Inventario</label>
+            <input v-model="formActivo.codigo" type="text" readonly class="w-full border border-slate-200 bg-slate-100 rounded-lg px-3 py-2 text-sm font-mono font-bold text-slate-700">
+          </div>
+          <div class="md:col-span-2">
+            <label class="block text-xs font-bold text-slate-700 mb-1">Rubro Contable (Define Vida Útil Fiscal) <span class="text-red-500">*</span></label>
+            <select v-model="formActivo.rubro" @change="asignarVidaUtilPorRubro" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500 font-medium">
+              <option value="EQUIPOS DE INFORMÁTICA">EQUIPOS DE INFORMÁTICA (4 Años - 25%)</option>
+              <option value="MUEBLES Y ÚTILES">MUEBLES Y ÚTILES DE OFICINA (10 Años - 10%)</option>
+              <option value="RODADOS">RODADOS Y VEHÍCULOS (5 Años - 20%)</option>
+              <option value="INMUEBLES">INMUEBLES - EDIFICACIONES (40 Años - 2.5%)</option>
+            </select>
+          </div>
+          <div class="md:col-span-2">
+            <label class="block text-xs font-bold text-slate-700 mb-1">Descripción Detallada del Bien <span class="text-red-500">*</span></label>
+            <input v-model="formActivo.descripcion" type="text" required placeholder="Ej. SERVIDOR DELL POWEREDGE R450 / MONITOR 27 QHD" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm uppercase outline-none focus:ring-2 focus:ring-blue-500">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Nro. de Serie / Chasis</label>
+            <input v-model="formActivo.nro_serie" type="text" required placeholder="SN-994821" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono uppercase outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Factura Compra (DTE)</label>
+            <input v-model="formActivo.factura" type="text" required placeholder="001-001-0045210" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Fecha Adquisición</label>
+            <input v-model="formActivo.fecha_compra" type="date" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Costo de Adquisición (Gs.)</label>
+            <input v-model.number="formActivo.costo_inicial" type="number" required min="10000" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm font-mono font-bold text-right text-blue-700 outline-none">
+          </div>
+          <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Sucursal Destino</label>
+            <select v-model="formActivo.sucursal" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white outline-none">
+              <option value="CASA CENTRAL">CASA CENTRAL</option>
+              <option value="AGENCIA SAN LORENZO">AGENCIA SAN LORENZO</option>
+              <option value="AGENCIA LUQUE">AGENCIA LUQUE</option>
+            </select>
+          </div>
+          <div class="md:col-span-2">
+            <label class="block text-xs font-bold text-slate-700 mb-1">Funcionario Custodio / Responsable</label>
+            <input v-model="formActivo.responsable" type="text" required placeholder="Ej. DPTO. TIC - ING. CARLOS MENDOZA" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm uppercase outline-none">
+          </div>
+        </div>
+        <div class="flex justify-end gap-3 pt-4 border-t border-slate-200 mt-4">
+          <button type="button" @click="activos.mostrarModalAlta = false" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm font-medium">Cancelar</button>
+          <button type="submit" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold shadow-sm">Guardar y Etiquetar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- MODAL 2: TRASLADO DE BIEN ENTRE SUCURSALES / RESPONSABLES -->
+  <div v-if="activos.mostrarModalTraslado" class="fixed inset-0 bg-slate-900/50 z-50 flex items-center justify-center backdrop-blur-sm p-4">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-md flex flex-col border border-slate-200 overflow-hidden">
+      <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+        <h3 class="font-semibold text-slate-800">Movimiento / Traslado de Bien</h3>
+        <button @click="activos.mostrarModalTraslado = false"><i class="ph ph-x text-lg text-slate-400"></i></button>
+      </div>
+      <form @submit.prevent="ejecutarTrasladoActivo" class="p-6 space-y-4">
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Seleccione el Bien a Trasladar</label>
+          <select v-model="formTraslado.activo_id" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white outline-none">
+            <option v-for="b in listaActivosFijos" :key="b.id" :value="b.id">{{ b.codigo }} - {{ b.descripcion }}</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Nueva Sucursal de Destino</label>
+          <select v-model="formTraslado.nueva_sucursal" required class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm bg-white outline-none">
+            <option value="CASA CENTRAL">CASA CENTRAL</option>
+            <option value="AGENCIA SAN LORENZO">AGENCIA SAN LORENZO</option>
+            <option value="AGENCIA LUQUE">AGENCIA LUQUE</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-xs font-bold text-slate-700 mb-1">Nuevo Funcionario Responsable</label>
+          <input v-model="formTraslado.nuevo_responsable" type="text" required placeholder="Nombre del nuevo encargado..." class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm uppercase outline-none">
+        </div>
+        <div class="flex justify-end gap-3 pt-4 border-t border-slate-200">
+          <button type="submit" class="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-sm font-bold">Registrar Acta de Traslado</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+</div>
