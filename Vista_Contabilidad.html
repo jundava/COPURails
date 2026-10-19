@@ -1,0 +1,322 @@
+<!-- ARCHIVO: Vista_Contabilidad.html -->
+<div class="h-full flex flex-col space-y-4 relative">
+  
+  <!-- CABECERA PRINCIPAL Y NAVEGACIÓN -->
+  <div class="bg-slate-800 text-white p-4 rounded-xl shadow-md shrink-0 flex flex-col md:flex-row md:justify-between md:items-center gap-4 z-10">
+    <div>
+      <h3 class="font-bold text-lg flex items-center gap-2">
+        <i class="ph ph-books text-emerald-400 text-2xl"></i> Hub Financiero y Contabilidad (INCOOP)
+      </h3>
+    </div>
+
+    <!-- Pestañas de Navegación del Hub -->
+    <div class="bg-slate-700 p-1 rounded-xl flex overflow-x-auto text-xs font-bold whitespace-nowrap">
+      <button @click="contabilidad.subTab = 'plan_cuentas'" :class="contabilidad.subTab === 'plan_cuentas' ? 'bg-emerald-600 text-white shadow' : 'text-slate-300 hover:text-white'" class="px-4 py-2 rounded-lg transition-all">Plan y Presupuesto</button>
+      <button @click="contabilidad.subTab = 'libro_diario'" :class="contabilidad.subTab === 'libro_diario' ? 'bg-emerald-600 text-white shadow' : 'text-slate-300 hover:text-white'" class="px-4 py-2 rounded-lg transition-all">Libro Diario</button>
+      <button @click="contabilidad.subTab = 'mayor_eeff'" :class="contabilidad.subTab === 'mayor_eeff' ? 'bg-emerald-600 text-white shadow' : 'text-slate-300 hover:text-white'" class="px-4 py-2 rounded-lg transition-all">Mayor y EE.FF.</button>
+      <button @click="contabilidad.subTab = 'tributario'" :class="contabilidad.subTab === 'tributario' ? 'bg-emerald-600 text-white shadow' : 'text-slate-300 hover:text-white'" class="px-4 py-2 rounded-lg transition-all">Tributario DNIT</button>
+      <button @click="contabilidad.subTab = 'conciliacion'" :class="contabilidad.subTab === 'conciliacion' ? 'bg-emerald-600 text-white shadow' : 'text-slate-300 hover:text-white'" class="px-4 py-2 rounded-lg transition-all">Conciliación Bancaria</button>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- 1. PLAN DE CUENTAS Y CONTROL PRESUPUESTARIO                               -->
+  <!-- ========================================================================= -->
+  <div v-if="contabilidad.subTab === 'plan_cuentas'" class="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+    <div class="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center shrink-0">
+      <div class="relative w-full md:w-96">
+        <i class="ph ph-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"></i>
+        <input v-model="contabilidad.busquedaCuenta" type="text" placeholder="Buscar cuenta o rubro..." class="w-full pl-9 pr-4 py-1.5 border border-slate-300 rounded-lg text-sm outline-none bg-white">
+      </div>
+      <button class="bg-slate-800 hover:bg-slate-900 text-white text-sm font-bold px-4 py-2 rounded-lg shadow-sm transition-colors flex items-center gap-1.5">
+        <i class="ph ph-plus"></i> Nueva Cuenta
+      </button>
+    </div>
+
+    <div class="flex-1 overflow-auto">
+      <table class="w-full text-left border-collapse">
+        <thead class="bg-white sticky top-0 border-b border-slate-200 shadow-sm z-10">
+          <tr>
+            <th class="py-3 px-6 text-xs font-semibold text-slate-500 uppercase w-48">Código</th>
+            <th class="py-3 px-6 text-xs font-semibold text-slate-500 uppercase">Descripción</th>
+            <th class="py-3 px-6 text-xs font-semibold text-slate-500 uppercase text-right">Saldo Actual (Gs.)</th>
+            <th class="py-3 px-6 text-xs font-semibold text-slate-500 uppercase w-64 text-center">Ejecución Presupuestaria</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 text-sm font-mono">
+          <tr v-for="cuenta in planCuentasFiltrado" :key="cuenta.codigo" :class="cuenta.nivel <= 2 ? 'bg-slate-50' : 'hover:bg-slate-50'">
+            <td class="py-2.5 px-6 font-bold" :class="cuenta.nivel === 1 ? 'text-base text-slate-800' : 'text-slate-600'">{{ cuenta.codigo }}</td>
+            <td class="py-2.5 px-6" :style="{ paddingLeft: (cuenta.nivel * 1.5) + 'rem' }">
+              <span :class="!cuenta.imputable ? 'font-bold uppercase text-slate-700' : 'text-slate-600'">{{ cuenta.descripcion }}</span>
+            </td>
+            <td class="py-2.5 px-6 text-right font-bold text-slate-800">{{ formatCurrency(cuenta.saldo) }}</td>
+            <td class="py-2.5 px-6">
+              <!-- Termómetro de Presupuesto para Cuentas de Gasto -->
+              <div v-if="cuenta.codigo.startsWith('5.') && cuenta.presupuesto > 0" class="w-full">
+                <div class="flex justify-between text-[10px] mb-1 font-bold text-slate-500">
+                  <span>Ejec: {{ formatCurrency(cuenta.saldo) }}</span>
+                  <span>Tope: {{ formatCurrency(cuenta.presupuesto) }}</span>
+                </div>
+                <div class="w-full bg-slate-200 rounded-full h-1.5">
+                  <div class="h-1.5 rounded-full" :class="(cuenta.saldo/cuenta.presupuesto)*100 > 90 ? 'bg-red-500' : 'bg-emerald-500'" :style="{ width: Math.min((cuenta.saldo/cuenta.presupuesto)*100, 100) + '%' }"></div>
+                </div>
+              </div>
+              <div v-else class="text-center text-[10px] text-slate-400 italic">No aplica</div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- 2. LIBRO DIARIO                                                           -->
+  <!-- ========================================================================= -->
+  <div v-if="contabilidad.subTab === 'libro_diario'" class="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden">
+    <div class="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center shrink-0">
+      <input type="month" v-model="contabilidad.mesDiario" class="border border-slate-300 rounded-lg px-3 py-1.5 text-sm font-mono outline-none">
+      <button @click="abrirModalAsiento" class="bg-emerald-600 text-white text-sm font-bold px-4 py-2 rounded-lg shadow flex items-center gap-2">
+        <i class="ph ph-pencil-simple"></i> Asiento Manual
+      </button>
+    </div>
+    <div class="flex-1 overflow-auto p-4 space-y-4 bg-slate-50/50">
+      <div v-for="asiento in baseLibroDiario" :key="asiento.nro" class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+         <div class="bg-slate-100/80 px-4 py-3 flex justify-between items-center cursor-pointer" @click="asiento.expandido = !asiento.expandido">
+            <div class="flex items-center gap-3">
+               <span class="bg-slate-800 text-white font-mono text-xs font-bold px-2 py-0.5 rounded">{{ asiento.nro }}</span>
+               <span class="text-xs font-mono text-slate-500">{{ asiento.fecha }}</span>
+               <span class="text-sm font-bold text-slate-800">{{ asiento.concepto }}</span>
+            </div>
+            <i class="ph text-lg text-slate-500" :class="asiento.expandido ? 'ph-caret-up' : 'ph-caret-down'"></i>
+         </div>
+         <div v-show="asiento.expandido" class="p-0 border-t border-slate-200">
+            <table class="w-full text-left text-sm font-mono">
+               <thead class="bg-slate-50 text-[10px] text-slate-500 border-b border-slate-200 uppercase">
+                  <tr><th class="py-2 px-4 w-24">Cta.</th><th class="py-2 px-4">Descripción</th><th class="py-2 px-4 text-right">Debe</th><th class="py-2 px-4 text-right">Haber</th></tr>
+               </thead>
+               <tbody class="divide-y divide-slate-100 text-xs">
+                  <tr v-for="(linea, idx) in asiento.lineas" :key="idx" class="hover:bg-slate-50">
+                     <td class="py-2 px-4 text-slate-500">{{ linea.codigo }}</td>
+                     <td class="py-2 px-4 font-bold" :class="linea.haber > 0 ? 'text-slate-600 pl-8' : 'text-slate-800'">{{ linea.cuenta }}</td>
+                     <td class="py-2 px-4 text-right text-blue-700 font-bold">{{ linea.debe > 0 ? formatCurrency(linea.debe) : '' }}</td>
+                     <td class="py-2 px-4 text-right text-emerald-700 font-bold">{{ linea.haber > 0 ? formatCurrency(linea.haber) : '' }}</td>
+                  </tr>
+               </tbody>
+            </table>
+         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- 3. MAYOR Y ESTADOS FINANCIEROS (EEFF)                                     -->
+  <!-- ========================================================================= -->
+  <div v-if="contabilidad.subTab === 'mayor_eeff'" class="flex-1 flex gap-4 overflow-hidden">
+    <!-- Panel Lateral Izquierdo -->
+    <div class="w-64 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col p-3 shrink-0 space-y-2">
+      <span class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 px-2">Consultas y Reportes</span>
+      <button @click="contabilidad.vistaEEFF = 'balance'" :class="contabilidad.vistaEEFF === 'balance' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'hover:bg-slate-50 text-slate-600 border-transparent'" class="w-full text-left px-3 py-2 text-sm font-bold border rounded-lg transition-colors">Balance General</button>
+      <button @click="contabilidad.vistaEEFF = 'resultados'" :class="contabilidad.vistaEEFF === 'resultados' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'hover:bg-slate-50 text-slate-600 border-transparent'" class="w-full text-left px-3 py-2 text-sm font-bold border rounded-lg transition-colors">Estado de Resultados</button>
+      <button @click="contabilidad.vistaEEFF = 'mayor'" :class="contabilidad.vistaEEFF === 'mayor' ? 'bg-blue-50 text-blue-700 border-blue-200' : 'hover:bg-slate-50 text-slate-600 border-transparent'" class="w-full text-left px-3 py-2 text-sm font-bold border rounded-lg transition-colors">Libro Mayor por Cuenta</button>
+      
+      <div class="mt-auto pt-4 border-t border-slate-200 space-y-2">
+        <span class="text-[10px] font-bold text-red-400 uppercase px-2">Cierre Fiscal</span>
+        <button @click="ejecutarCierreAnual" class="w-full bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold px-3 py-2 rounded-lg flex justify-center items-center gap-1.5 shadow-sm">
+          <i class="ph ph-lock-key"></i> Asiento Cierre Anual
+        </button>
+      </div>
+    </div>
+
+    <!-- Área Principal EEFF -->
+    <div class="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col overflow-hidden p-6">
+      
+      <!-- Vista Balance General -->
+      <div v-if="contabilidad.vistaEEFF === 'balance'" class="h-full flex flex-col">
+        <h2 class="text-xl font-bold text-slate-800 border-b pb-2 mb-4 text-center uppercase tracking-widest">Balance General<br><span class="text-xs text-slate-500 font-normal">A la fecha actual (En Guaraníes)</span></h2>
+        <div class="grid grid-cols-2 gap-8 flex-1 overflow-auto">
+          <!-- Activo -->
+          <div>
+            <h3 class="font-bold text-slate-800 bg-slate-100 p-2 text-sm mb-2 border-l-4 border-blue-500">ACTIVO</h3>
+            <div v-for="cta in basePlanCuentas.filter(c => c.codigo.startsWith('1') && c.nivel <= 2)" class="flex justify-between text-sm py-1 border-b border-slate-100 font-mono">
+              <span :class="cta.nivel===1 ? 'font-bold uppercase' : 'pl-4 text-slate-600'">{{ cta.descripcion }}</span>
+              <span class="font-bold">{{ formatCurrency(cta.saldo) }}</span>
+            </div>
+            <div class="flex justify-between font-bold text-lg text-blue-700 mt-4 border-t-2 border-blue-200 pt-2 font-mono">
+              <span>TOTAL ACTIVO</span><span>Gs. {{ formatCurrency(eeffCalculado.totalActivo) }}</span>
+            </div>
+          </div>
+          <!-- Pasivo y Patrimonio -->
+          <div>
+            <h3 class="font-bold text-slate-800 bg-slate-100 p-2 text-sm mb-2 border-l-4 border-red-500">PASIVO</h3>
+            <div v-for="cta in basePlanCuentas.filter(c => c.codigo.startsWith('2') && c.nivel <= 2)" class="flex justify-between text-sm py-1 border-b border-slate-100 font-mono">
+              <span :class="cta.nivel===1 ? 'font-bold uppercase' : 'pl-4 text-slate-600'">{{ cta.descripcion }}</span>
+              <span class="font-bold">{{ formatCurrency(cta.saldo) }}</span>
+            </div>
+            <div class="flex justify-between font-bold text-slate-800 mt-2 mb-4 font-mono">
+              <span>TOTAL PASIVO</span><span>Gs. {{ formatCurrency(eeffCalculado.totalPasivo) }}</span>
+            </div>
+
+            <h3 class="font-bold text-slate-800 bg-slate-100 p-2 text-sm mb-2 border-l-4 border-emerald-500">PATRIMONIO NETO</h3>
+            <div v-for="cta in basePlanCuentas.filter(c => c.codigo.startsWith('3') && c.nivel <= 2)" class="flex justify-between text-sm py-1 border-b border-slate-100 font-mono">
+              <span :class="cta.nivel===1 ? 'font-bold uppercase' : 'pl-4 text-slate-600'">{{ cta.descripcion }}</span>
+              <span class="font-bold">{{ formatCurrency(cta.saldo) }}</span>
+            </div>
+            
+            <div class="flex justify-between font-bold text-lg text-emerald-700 mt-4 border-t-2 border-emerald-200 pt-2 font-mono">
+              <span>TOTAL PASIVO + PATRIMONIO</span><span>Gs. {{ formatCurrency(eeffCalculado.totalPasivo + eeffCalculado.totalPatrimonio) }}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Vista Estado de Resultados -->
+      <div v-if="contabilidad.vistaEEFF === 'resultados'" class="h-full flex flex-col">
+        <h2 class="text-xl font-bold text-slate-800 border-b pb-2 mb-4 text-center uppercase tracking-widest">Estado de Resultados<br><span class="text-xs text-slate-500 font-normal">Cuadro de Excedentes y Pérdidas</span></h2>
+        <div class="grid grid-cols-2 gap-8 flex-1 overflow-auto">
+          <!-- Ingresos -->
+          <div>
+            <h3 class="font-bold text-slate-800 bg-slate-100 p-2 text-sm mb-2 border-l-4 border-blue-500">INGRESOS OPERATIVOS</h3>
+            <div v-for="cta in basePlanCuentas.filter(c => c.codigo.startsWith('4') && c.nivel <= 2)" class="flex justify-between text-sm py-1 border-b border-slate-100 font-mono">
+              <span :class="cta.nivel===1 ? 'font-bold uppercase' : 'pl-4 text-slate-600'">{{ cta.descripcion }}</span>
+              <span class="font-bold text-blue-700">{{ formatCurrency(cta.saldo) }}</span>
+            </div>
+          </div>
+          <!-- Egresos -->
+          <div>
+            <h3 class="font-bold text-slate-800 bg-slate-100 p-2 text-sm mb-2 border-l-4 border-red-500">EGRESOS Y GASTOS</h3>
+            <div v-for="cta in basePlanCuentas.filter(c => c.codigo.startsWith('5') && c.nivel <= 2)" class="flex justify-between text-sm py-1 border-b border-slate-100 font-mono">
+              <span :class="cta.nivel===1 ? 'font-bold uppercase' : 'pl-4 text-slate-600'">{{ cta.descripcion }}</span>
+              <span class="font-bold text-red-600">{{ formatCurrency(cta.saldo) }}</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Resultado del Ejercicio (Excedente) -->
+        <div class="bg-slate-800 text-white p-4 rounded-xl shrink-0 mt-4 flex justify-between items-center font-mono">
+           <span class="text-sm uppercase tracking-wider font-bold">Resultado del Ejercicio (Excedente Bruto):</span>
+           <span class="text-2xl font-bold text-emerald-400">Gs. {{ formatCurrency(eeffCalculado.excedenteEjercicio) }}</span>
+        </div>
+      </div>
+
+      <!-- Vista Libro Mayor -->
+      <div v-if="contabilidad.vistaEEFF === 'mayor'" class="h-full flex flex-col">
+        <h2 class="text-base font-bold text-slate-800 border-b pb-2 mb-4 uppercase">Libro Mayor Analítico</h2>
+        <div class="flex gap-2 mb-4 shrink-0">
+          <select v-model="contabilidad.cuentaMayorSeleccionada" class="flex-1 border border-slate-300 rounded px-3 py-2 text-sm font-bold bg-slate-50 outline-none">
+            <option value="null" disabled>Seleccione una cuenta imputable...</option>
+            <option v-for="cta in basePlanCuentas.filter(c=>c.imputable)" :value="cta">{{ cta.codigo }} - {{ cta.descripcion }}</option>
+          </select>
+        </div>
+        <div class="flex-1 overflow-auto border border-slate-200 rounded-lg">
+          <table v-if="contabilidad.cuentaMayorSeleccionada" class="w-full text-left text-sm font-mono">
+            <thead class="bg-slate-100 text-xs text-slate-600 border-b border-slate-200 sticky top-0">
+              <tr><th class="py-2 px-4">Fecha</th><th class="py-2 px-4">Concepto (Asiento)</th><th class="py-2 px-4 text-right">Debe</th><th class="py-2 px-4 text-right">Haber</th><th class="py-2 px-4 text-right text-emerald-700">Saldo</th></tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100 text-xs">
+              <tr><td class="py-2 px-4 text-slate-400">01/10/2026</td><td class="py-2 px-4">SALDO INICIAL</td><td class="py-2 px-4 text-right"></td><td class="py-2 px-4 text-right"></td><td class="py-2 px-4 text-right font-bold">{{ formatCurrency(contabilidad.cuentaMayorSeleccionada.saldo * 0.8) }}</td></tr>
+              <tr><td class="py-2 px-4 text-slate-400">16/10/2026</td><td class="py-2 px-4 text-blue-600 cursor-pointer">AS-10047: COBRO EFECTIVO CUOTA</td><td class="py-2 px-4 text-right">{{ contabilidad.cuentaMayorSeleccionada.naturaleza==='DEUDORA'? '125.000' : '' }}</td><td class="py-2 px-4 text-right">{{ contabilidad.cuentaMayorSeleccionada.naturaleza==='ACREEDORA'? '125.000' : '' }}</td><td class="py-2 px-4 text-right font-bold">{{ formatCurrency(contabilidad.cuentaMayorSeleccionada.saldo) }}</td></tr>
+            </tbody>
+          </table>
+          <div v-else class="h-full flex items-center justify-center text-slate-400 italic text-sm">Seleccione una cuenta para visualizar sus movimientos.</div>
+        </div>
+      </div>
+      
+    </div>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- 4. GESTIÓN TRIBUTARIA (DNIT)                                              -->
+  <!-- ========================================================================= -->
+  <div v-if="contabilidad.subTab === 'tributario'" class="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col p-6 items-center justify-center text-center">
+    <i class="ph ph-receipt text-6xl text-slate-300 mb-4"></i>
+    <h2 class="text-xl font-bold text-slate-800">Libro de Compras y Ventas (Hechauka / Ekuatia)</h2>
+    <p class="text-slate-500 mt-2 max-w-md text-sm">Módulo en preparación. Permitirá consolidar los DTE registrados en los asientos contables y exportar el JSON estructurado requerido por el sistema Marangatú de la DNIT.</p>
+    <button class="mt-6 bg-slate-800 text-white px-6 py-2 rounded-lg font-bold shadow opacity-50 cursor-not-allowed">Exportar JSON Marangatú (Próximamente)</button>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- 5. CONCILIACIÓN BANCARIA                                                  -->
+  <!-- ========================================================================= -->
+  <div v-if="contabilidad.subTab === 'conciliacion'" class="flex-1 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col p-6 items-center justify-center text-center">
+    <i class="ph ph-arrows-merge text-6xl text-slate-300 mb-4"></i>
+    <h2 class="text-xl font-bold text-slate-800">Conciliación Bancaria Automatizada</h2>
+    <p class="text-slate-500 mt-2 max-w-md text-sm">Módulo en preparación. Interfaz dividida para importar extractos bancarios en CSV y hacer match automático con los movimientos de la cuenta 1.1.02.</p>
+  </div>
+
+  <!-- ========================================================================= -->
+  <!-- MODAL: NUEVO ASIENTO CONTABLE MANUAL                                      -->
+  <!-- ========================================================================= -->
+  <div v-if="contabilidad.mostrarModalAsiento" class="fixed inset-0 bg-slate-900/80 z-50 flex items-center justify-center backdrop-blur-sm p-4">
+    <div class="bg-white rounded-xl shadow-2xl w-full max-w-4xl flex flex-col border border-slate-200 overflow-hidden">
+      
+      <div class="bg-slate-800 text-white px-6 py-4 flex justify-between items-center shrink-0">
+        <h3 class="font-bold text-lg flex items-center gap-2"><i class="ph ph-pencil-simple"></i> Carga de Asiento Manual</h3>
+        <button @click="cerrarModalAsiento" class="text-slate-400 hover:text-white"><i class="ph ph-x text-2xl"></i></button>
+      </div>
+
+      <div class="p-6 bg-slate-50 border-b border-slate-200 grid grid-cols-1 md:grid-cols-3 gap-4 shrink-0">
+         <div>
+            <label class="block text-xs font-bold text-slate-700 mb-1">Fecha del Asiento</label>
+            <input v-model="formAsiento.fecha" type="date" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none font-mono">
+         </div>
+         <div class="md:col-span-2">
+            <label class="block text-xs font-bold text-slate-700 mb-1">Concepto / Glosa Explícita</label>
+            <input v-model="formAsiento.concepto" type="text" placeholder="Ej. Provisión de salarios administrativos del mes..." class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm outline-none uppercase">
+         </div>
+      </div>
+
+      <div class="flex-1 overflow-auto p-6">
+         <table class="w-full text-left text-sm font-mono border border-slate-300 rounded-lg overflow-hidden">
+            <thead class="bg-slate-200 text-xs text-slate-700 border-b border-slate-300">
+               <tr>
+                  <th class="py-2 px-3 w-12 text-center">#</th>
+                  <th class="py-2 px-3">Cuenta Contable (Imputable)</th>
+                  <th class="py-2 px-3 text-right w-40">Debe (Gs.)</th>
+                  <th class="py-2 px-3 text-right w-40">Haber (Gs.)</th>
+                  <th class="py-2 px-3 text-center w-16">Quitar</th>
+               </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200">
+               <tr v-for="(linea, idx) in formAsiento.lineas" :key="idx">
+                  <td class="py-2 px-3 text-center text-slate-400">{{ idx + 1 }}</td>
+                  <td class="py-2 px-3">
+                     <select v-model="linea.codigo" class="w-full border-none bg-transparent outline-none font-bold text-slate-700">
+                        <option value="" disabled>Seleccione cuenta...</option>
+                        <option v-for="cta in cuentasImputables" :key="cta.codigo" :value="cta.codigo">
+                           {{ cta.codigo }} - {{ cta.descripcion }}
+                        </option>
+                     </select>
+                  </td>
+                  <td class="py-2 px-3">
+                     <input v-model.number="linea.debe" @input="linea.haber = linea.debe > 0 ? 0 : linea.debe" type="number" class="w-full border border-slate-300 rounded px-2 py-1 text-right outline-none text-blue-700 font-bold focus:border-blue-500">
+                  </td>
+                  <td class="py-2 px-3">
+                     <input v-model.number="linea.haber" @input="linea.debe = linea.haber > 0 ? 0 : linea.debe" type="number" class="w-full border border-slate-300 rounded px-2 py-1 text-right outline-none text-emerald-700 font-bold focus:border-emerald-500">
+                  </td>
+                  <td class="py-2 px-3 text-center">
+                     <button @click="quitarLineaAsiento(idx)" class="text-red-400 hover:text-red-600"><i class="ph ph-trash text-lg"></i></button>
+                  </td>
+               </tr>
+            </tbody>
+         </table>
+         <button @click="agregarLineaAsiento" class="mt-3 text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1">
+            <i class="ph ph-plus-circle text-base"></i> Agregar fila al asiento
+         </button>
+      </div>
+
+      <!-- Validación de Cuadre y Guardado -->
+      <div class="bg-slate-100 p-5 border-t border-slate-300 flex justify-between items-center shrink-0">
+         <div class="flex gap-6 text-sm font-mono bg-white px-4 py-2 border border-slate-300 rounded-lg shadow-inner">
+            <div><span class="text-slate-500 text-xs font-bold uppercase">Tot. Debe: </span><span class="font-bold text-blue-700">Gs. {{ formatCurrency(totalNuevoAsiento.debe) }}</span></div>
+            <div><span class="text-slate-500 text-xs font-bold uppercase">Tot. Haber: </span><span class="font-bold text-emerald-700">Gs. {{ formatCurrency(totalNuevoAsiento.haber) }}</span></div>
+            <div :class="totalNuevoAsiento.diferencia === 0 ? 'text-emerald-600' : 'text-red-600'"><span class="text-slate-500 text-xs font-bold uppercase">Dif: </span><span class="font-bold">Gs. {{ formatCurrency(totalNuevoAsiento.diferencia) }}</span></div>
+         </div>
+         <button @click="guardarAsientoManual" :disabled="totalNuevoAsiento.diferencia !== 0 || formAsiento.lineas.length < 2 || !formAsiento.concepto" class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-400 text-white rounded-lg font-bold text-sm shadow-md transition-colors flex items-center gap-2">
+            <i class="ph ph-floppy-disk text-lg"></i> Contabilizar Asiento
+         </button>
+      </div>
+
+    </div>
+  </div>
+
+</div>

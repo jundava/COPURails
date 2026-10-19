@@ -95,7 +95,7 @@
       </div>
     </div>
 
-    <!-- 5. CAJA Y TESORERÍA (Nuevo Bloque Separado) -->
+    <!-- 5. CAJA Y TESORERÍA (Bloque Separado) -->
     <div>
       <button @click="toggleMenu('menu-tesoreria')" class="w-full flex items-center justify-between px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-200 transition-colors">
         <span>Caja y Tesorería</span>
@@ -129,7 +129,21 @@
       </div>
     </div>
 
-    <!-- 7. ADMINISTRACIÓN Y CONFIGURACIÓN -->
+    <!-- 7. CONTABILIDAD Y FINANZAS -->
+    <div>
+      <button @click="toggleMenu('menu-contabilidad')" class="w-full flex items-center justify-between px-3 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400 hover:text-slate-200 transition-colors">
+        <span>Contabilidad</span>
+        <i class="ph" :class="menusAbiertos['menu-contabilidad'] ? 'ph-caret-up' : 'ph-caret-down'"></i>
+      </button>
+      
+      <div v-show="menusAbiertos['menu-contabilidad']" class="mt-1 ml-3 pl-3 border-l border-emerald-800/60 space-y-1">
+        <button @click="cambiarVista('contabilidad')" :class="vistaActual === 'contabilidad' ? 'text-emerald-400 font-bold bg-slate-800/60' : 'text-slate-300 hover:text-white hover:bg-slate-800/40'" class="w-full text-left px-3 py-2 rounded-lg text-sm transition-colors flex items-center gap-2">
+          <i class="ph ph-books text-base"></i> Contabilidad General
+        </button>
+      </div>
+    </div>
+
+    <!-- 8. ADMINISTRACIÓN Y CONFIGURACIÓN -->
     <div class="pt-3 border-t border-slate-800 space-y-1">
       <button @click="cambiarVista('reportes')" :class="vistaActual === 'reportes' ? 'bg-slate-800 text-white font-semibold' : 'text-slate-300 hover:bg-slate-800 hover:text-white'" class="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors">
         <i class="ph ph-file-text text-lg"></i>

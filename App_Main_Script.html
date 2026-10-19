@@ -1691,6 +1691,180 @@
         caja.nroCheque = '';
       };
 
+      // --- ESTADO: CONTABILIDAD GENERAL (HUB FINANCIERO INCOOP) ---
+      const contabilidad = reactive({
+        subTab: 'plan_cuentas', // 'plan_cuentas', 'libro_diario', 'mayor_eeff', 'tributario', 'conciliacion'
+        busquedaCuenta: '',
+        mesDiario: '2026-10',
+        mostrarModalAsiento: false,
+        vistaEEFF: 'balance', // 'balance', 'resultados', 'mayor'
+        cuentaMayorSeleccionada: null
+      });
+
+      // DATOS MOCK PLAN DE CUENTAS (Incluye Ejecución Presupuestaria en GASTOS)
+      const basePlanCuentas = ref([
+        { codigo: '1', descripcion: 'ACTIVO', naturaleza: 'DEUDORA', nivel: 1, imputable: false, saldo: 24050000000 },
+        { codigo: '1.1', descripcion: 'DISPONIBILIDADES', naturaleza: 'DEUDORA', nivel: 2, imputable: false, saldo: 1700000000 },
+        { codigo: '1.1.01.01', descripcion: 'Caja Fuerte - Bóveda Central', naturaleza: 'DEUDORA', nivel: 4, imputable: true, saldo: 350000000 },
+        { codigo: '1.1.02.01', descripcion: 'Banco Itaú - Cta. Cte. Nro 123456', naturaleza: 'DEUDORA', nivel: 4, imputable: true, saldo: 800000000 },
+        { codigo: '1.2', descripcion: 'CARTERA DE CRÉDITOS', naturaleza: 'DEUDORA', nivel: 2, imputable: false, saldo: 21500000000 },
+        { codigo: '1.3', descripcion: 'ACTIVO FIJO (BIENES DE USO)', naturaleza: 'DEUDORA', nivel: 2, imputable: false, saldo: 850000000 },
+        
+        { codigo: '2', descripcion: 'PASIVO', naturaleza: 'ACREEDORA', nivel: 1, imputable: false, saldo: 12800000000 },
+        { codigo: '2.1', descripcion: 'OBLIGACIONES CON SOCIOS (AHORROS)', naturaleza: 'ACREEDORA', nivel: 2, imputable: false, saldo: 10500000000 },
+        
+        { codigo: '3', descripcion: 'PATRIMONIO NETO', naturaleza: 'ACREEDORA', nivel: 1, imputable: false, saldo: 11250000000 },
+        { codigo: '3.1', descripcion: 'CAPITAL SOCIAL COOPERATIVO', naturaleza: 'ACREEDORA', nivel: 2, imputable: false, saldo: 9500000000 },
+        { codigo: '3.2', descripcion: 'RESERVAS Y FONDOS INSTITUCIONALES', naturaleza: 'ACREEDORA', nivel: 2, imputable: false, saldo: 1750000000 },
+
+        { codigo: '4', descripcion: 'INGRESOS', naturaleza: 'ACREEDORA', nivel: 1, imputable: false, saldo: 3500000000 },
+        { codigo: '4.1', descripcion: 'INGRESOS FINANCIEROS Y OPERATIVOS', naturaleza: 'ACREEDORA', nivel: 2, imputable: false, saldo: 3500000000 },
+
+        { codigo: '5', descripcion: 'EGRESOS', naturaleza: 'DEUDORA', nivel: 1, imputable: false, saldo: 1800000000 },
+        { codigo: '5.1', descripcion: 'GASTOS FINANCIEROS', naturaleza: 'DEUDORA', nivel: 2, imputable: false, saldo: 900000000, presupuesto: 1000000000 },
+        { codigo: '5.2', descripcion: 'GASTOS ADMINISTRATIVOS', naturaleza: 'DEUDORA', nivel: 2, imputable: false, saldo: 900000000, presupuesto: 950000000 },
+        { codigo: '5.2.01', descripcion: 'Sueldos y Cargas Sociales', naturaleza: 'DEUDORA', nivel: 3, imputable: true, saldo: 600000000, presupuesto: 650000000 },
+        { codigo: '5.2.02', descripcion: 'Servicios Básicos (ANDE, ESSAP)', naturaleza: 'DEUDORA', nivel: 3, imputable: true, saldo: 50000000, presupuesto: 120000000 },
+      ]);
+
+      const baseLibroDiario = ref([
+        { nro: 'AS-10047', fecha: '16/10/2026', concepto: 'COBRO EFECTIVO: CUOTA PRÉSTAMO Y APORTE (REC-2026-0012)', origen: 'MÓD. CAJA', expandido: false, total_debe: 450500, total_haber: 450500, lineas: [] }
+      ]);
+
+      // --- PROPIEDADES COMPUTADAS EEFF ---
+      const eeffCalculado = Vue.computed(() => {
+        let activo = 0, pasivo = 0, patrimonio = 0, ingresos = 0, egresos = 0;
+        basePlanCuentas.value.forEach(cta => {
+          if (cta.nivel === 1) {
+            if (cta.codigo === '1') activo = cta.saldo;
+            if (cta.codigo === '2') pasivo = cta.saldo;
+            if (cta.codigo === '3') patrimonio = cta.saldo;
+            if (cta.codigo === '4') ingresos = cta.saldo;
+            if (cta.codigo === '5') egresos = cta.saldo;
+          }
+        });
+        // Excedente = Ingresos - Egresos
+        const excedente = ingresos - egresos;
+        
+        // Para que el balance cuadre, el excedente del ejercicio actual debe sumarse temporalmente al patrimonio
+        return {
+          totalActivo: activo,
+          totalPasivo: pasivo,
+          totalPatrimonio: patrimonio + excedente,
+          excedenteEjercicio: excedente
+        };
+      });
+
+      const planCuentasFiltrado = Vue.computed(() => {
+        const query = contabilidad.busquedaCuenta.toLowerCase();
+        if (!query) return basePlanCuentas.value;
+        return basePlanCuentas.value.filter(cta => cta.codigo.includes(query) || cta.descripcion.toLowerCase().includes(query));
+      });
+
+      // --- LÓGICA DE CIERRE ANUAL (DISTRIBUCIÓN DE EXCEDENTES LEY 438/94) ---
+      const ejecutarCierreAnual = () => {
+        const excedente = eeffCalculado.value.excedenteEjercicio;
+        if (excedente <= 0) {
+          alert("No hay excedentes a distribuir en este ejercicio.");
+          return;
+        }
+
+        if(!confirm(`Se ejecutarán los asientos de Cierre Fiscal.\nExcedente Bruto: Gs. ${formatCurrency(excedente)}\n¿Confirma generar la distribución legal (Reserva Legal, Educación, Solidaridad)?`)) return;
+
+        // Cálculo Legal
+        const reservaLegal = Math.round(excedente * 0.10);
+        const fondoEducacion = Math.round(excedente * 0.10);
+        const fondoSolidaridad = Math.round(excedente * 0.10);
+        const remanente = excedente - (reservaLegal + fondoEducacion + fondoSolidaridad);
+
+        const nuevoNro = 'AS-CIERRE-2026';
+        baseLibroDiario.value.unshift({
+          nro: nuevoNro,
+          fecha: '31/12/2026',
+          concepto: 'CIERRE DE EJERCICIO Y DISTRIBUCIÓN DE EXCEDENTES LEY 438/94',
+          origen: 'ASIENTO AUTOMÁTICO',
+          expandido: true,
+          total_debe: excedente,
+          total_haber: excedente,
+          lineas: [
+            { codigo: '4.X / 5.X', cuenta: 'Puente de Cierre (Resultados)', debe: excedente, haber: 0 },
+            { codigo: '3.2.01', cuenta: 'Reserva Legal (10%)', debe: 0, haber: reservaLegal },
+            { codigo: '3.2.03', cuenta: 'Fondo Fomento Educativo (10%)', debe: 0, haber: fondoEducacion },
+            { codigo: '3.2.02', cuenta: 'Fondo de Solidaridad (10%)', debe: 0, haber: fondoSolidaridad },
+            { codigo: '3.3.01', cuenta: 'Excedentes a Distribuir Asamblea', debe: 0, haber: remanente }
+          ]
+        });
+
+        alert("Cierre de ejercicio generado exitosamente. Saldos de cuentas de resultados llevados a cero.");
+        contabilidad.subTab = 'libro_diario'; // Llevamos al usuario a ver el asiento generado
+      };
+
+      // --- LÓGICA DE ASIENTOS MANUALES RESTAURADA ---
+      const cuentasImputables = Vue.computed(() => {
+        return basePlanCuentas.value.filter(cta => cta.imputable);
+      });
+
+      const formAsiento = reactive({
+        fecha: new Date().toISOString().split('T')[0],
+        concepto: '',
+        lineas: []
+      });
+
+      const totalNuevoAsiento = Vue.computed(() => {
+        let d = 0; let h = 0;
+        formAsiento.lineas.forEach(l => { d += (l.debe || 0); h += (l.haber || 0); });
+        return { debe: d, haber: h, diferencia: Math.abs(d - h) };
+      });
+
+      const abrirModalAsiento = () => {
+        formAsiento.fecha = new Date().toISOString().split('T')[0];
+        formAsiento.concepto = '';
+        formAsiento.lineas = [{ codigo: '', debe: 0, haber: 0 }, { codigo: '', debe: 0, haber: 0 }];
+        contabilidad.mostrarModalAsiento = true;
+      };
+
+      const agregarLineaAsiento = () => {
+        formAsiento.lineas.push({ codigo: '', debe: 0, haber: 0 });
+      };
+
+      const quitarLineaAsiento = (index) => {
+        if (formAsiento.lineas.length > 2) formAsiento.lineas.splice(index, 1);
+        else alert("Un asiento contable (partida doble) requiere al menos 2 cuentas.");
+      };
+
+      const cerrarModalAsiento = () => {
+        contabilidad.mostrarModalAsiento = false;
+      };
+
+      const guardarAsientoManual = () => {
+        if (totalNuevoAsiento.value.diferencia !== 0) {
+          alert("El asiento no está cuadrado. El Debe y el Haber deben sumar montos iguales.");
+          return;
+        }
+        
+        const lineasProcesadas = formAsiento.lineas.filter(l => l.debe > 0 || l.haber > 0).map(l => {
+          const ctaObj = basePlanCuentas.value.find(c => c.codigo === l.codigo);
+          return { ...l, cuenta: ctaObj ? ctaObj.descripcion : 'Cuenta Desconocida' };
+        });
+
+        const nuevoNro = 'AS-' + Math.floor(11000 + Math.random() * 8000);
+        baseLibroDiario.value.unshift({
+          nro: nuevoNro,
+          fecha: formAsiento.fecha.split('-').reverse().join('/'),
+          concepto: formAsiento.concepto.toUpperCase(),
+          origen: 'ASIENTO MANUAL',
+          expandido: true,
+          total_debe: totalNuevoAsiento.value.debe,
+          total_haber: totalNuevoAsiento.value.haber,
+          lineas: lineasProcesadas
+        });
+
+        alert(`Asiento Contable Nro. ${nuevoNro} asentado correctamente en el Libro Diario.`);
+        cerrarModalAsiento();
+      };
+
+      
+
       return {
         tenant,vistaActual,loading,caja, cambiarVista,formatCurrency, solicitarApertura,menusAbiertos,toggleMenu,
         mesaEntrada, nuevoIngreso, solicitudesFiltradas, 
@@ -1714,7 +1888,8 @@
         aprobCredito, formDictamenCredito, listaSolicitudesCredito, solicitudesCreditoFiltradas, seleccionarSolicitudCredito, elevarAConsejoCredito, rechazarSolicitudCredito, aprobarYDesembolsarCredito,
         activos,formActivo, formTraslado, depreciacion, listaActivosFijos, activosFiltrados, resumenActivos, cuadroDepreciacionProyectado,totalesCuadroDepreciacion, asignarVidaUtilPorRubro, abrirModalAltaActivo, guardarNuevoActivo, abrirModalTraslado, ejecutarTrasladoActivo, ejecutarRevaluoYDepreciacionAnual,
         reportes, catalogoReportes, logsAuditoriaFiltrados, parametros, seguridad, formUsuario, listaUsuariosSistema, exportarReporteSimulado,
-        guardarParametriaGeneral, abrirModalNuevoUsuario, guardarNuevoUsuario,alternarEstadoUsuario, historialCobranzasFiltrado, procesarCobroMultivalor, totalHistorialFiltrado, reporteSeleccionado,datosPreviaReporte,abrirVistaPreviaReporte, exportarReporteDefinitivo
+        guardarParametriaGeneral, abrirModalNuevoUsuario, guardarNuevoUsuario,alternarEstadoUsuario, historialCobranzasFiltrado, procesarCobroMultivalor, totalHistorialFiltrado, reporteSeleccionado,datosPreviaReporte,abrirVistaPreviaReporte, exportarReporteDefinitivo,
+        contabilidad,basePlanCuentas, baseLibroDiario, planCuentasFiltrado, cuentasImputables, formAsiento, totalNuevoAsiento, abrirModalAsiento, agregarLineaAsiento, quitarLineaAsiento, cerrarModalAsiento, guardarAsientoManual,eeffCalculado, ejecutarCierreAnual
       }
     }
   }).mount('#app');
